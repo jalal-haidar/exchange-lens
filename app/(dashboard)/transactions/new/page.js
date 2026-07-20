@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { useCustomers, useRates, useTransactionMutations } from "@/hooks";
@@ -21,7 +21,7 @@ const TYPE_ACTIVE_CLASSES = {
   expense: "border-text-muted bg-badge-gray-bg",
 };
 
-export default function NewTransactionPage() {
+function NewTransactionForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialType = searchParams.get("type") || "buy";
@@ -232,5 +232,13 @@ export default function NewTransactionPage() {
         </div>
       </form>
     </div>
+  );
+}
+
+export default function NewTransactionPage() {
+  return (
+    <Suspense>
+      <NewTransactionForm />
+    </Suspense>
   );
 }
