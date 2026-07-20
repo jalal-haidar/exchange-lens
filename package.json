@@ -1,0 +1,46 @@
+{
+  "name": "@lifelens/exchange",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev -p 3005",
+    "dev:dev": "node scripts/switch-env.js development && next dev -p 3005 --turbopack",
+    "dev:prod": "node scripts/switch-env.js production && next dev -p 3005 --turbopack",
+    "build": "next build",
+    "build:dev": "node scripts/switch-env.js development && next build",
+    "build:prod": "node scripts/switch-env.js production && next build",
+    "start": "next start -p 3005",
+    "lint": "next lint",
+    "test:e2e": "npx playwright test",
+    "test:e2e:ui": "npx playwright test --ui",
+    "env:dev": "node scripts/switch-env.js development",
+    "env:prod": "node scripts/switch-env.js production"
+  },
+  "dependencies": {
+    "@headlessui/react": "^2.2.4",
+    "@heroicons/react": "^2.2.0",
+    "@lifelens/auth": "^0.4.0",
+    "@next/eslint-plugin-next": "^15.3.4",
+    "@supabase/ssr": "^0.7.0",
+    "@supabase/supabase-js": "^2.110.7",
+    "@tanstack/react-query": "^5.101.2",
+    "next": "^16.0.0",
+    "next-nprogress-bar": "^2.3.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-hook-form": "^7.66.0",
+    "recharts": "^2.15.4",
+    "sonner": "^2.0.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1",
+    "@tailwindcss/postcss": "^4.1.11",
+    "dotenv": "^17.4.2",
+    "tailwindcss": "^4.1.11"
+  },
+  "pnpm": {
+    "verify-deps-before-run": false,
+    "minimumReleaseAge": "0"
+  }
+}
