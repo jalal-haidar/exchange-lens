@@ -2,22 +2,26 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useExchangeAccess } from "@/contexts/ExchangeAccessContext";
+import { Permissions } from "@/lib/access/permissions";
 
 const tabs = [
-  { name: "Dashboard", href: "/dashboard", icon: "🏠" },
-  { name: "Customers", href: "/customers", icon: "👥" },
-  { name: "New", href: "/transactions/new", icon: "➕", isAction: true },
-  { name: "Transactions", href: "/transactions", icon: "💱" },
-  { name: "More", href: "/rates", icon: "📊" },
+  { name: "Dashboard", href: "/dashboard", icon: "🏠", permissions: [Permissions.ACCESS_READ] },
+  { name: "Customers", href: "/customers", icon: "👥", permissions: [Permissions.CUSTOMERS_DIRECTORY_READ] },
+  { name: "New", href: "/transactions/new", icon: "➕", isAction: true, permissions: [Permissions.TRANSACTIONS_POST] },
+  { name: "Transactions", href: "/transactions", icon: "💱", permissions: [Permissions.OPERATIONS_READ_ALL, Permissions.TRANSACTIONS_READ_OWN] },
+  { name: "Rates", href: "/rates", icon: "📊", permissions: [Permissions.RATES_READ] },
 ];
 
 export default function MobileBottomNav() {
   const pathname = usePathname();
+  const { permissions } = useExchangeAccess();
+  const visibleTabs = tabs.filter((tab) => tab.permissions.some((permission) => permissions.includes(permission)));
 
   return (
     <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface-nav border-t border-border-theme safe-bottom">
       <div className="flex items-center justify-around h-16 px-2">
-        {tabs.map((tab) => {
+        {visibleTabs.map((tab) => {
           const isActive = pathname === tab.href || pathname?.startsWith(tab.href + "/");
 
           if (tab.isAction) {

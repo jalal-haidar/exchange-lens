@@ -5,8 +5,13 @@ import { useCustomers, useDebounce } from "@/hooks";
 import CustomerList from "@/components/customers/CustomerList";
 import CustomerForm from "@/components/customers/CustomerForm";
 import Pagination from "@/components/shared/Pagination";
+import { useExchangeAccess } from "@/contexts/ExchangeAccessContext";
+import { Permissions } from "@/lib/access/permissions";
 
 export default function CustomersPage() {
+  const { can } = useExchangeAccess();
+  const canManage = can(Permissions.CUSTOMERS_MANAGE);
+  const canViewDetails = can(Permissions.CUSTOMERS_READ);
   const [showForm, setShowForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [search, setSearch] = useState("");
@@ -33,12 +38,12 @@ export default function CustomersPage() {
           <h1 className="text-2xl font-bold text-text-primary">Customers</h1>
           <p className="text-text-secondary mt-1">{pagination?.total || 0} total customers</p>
         </div>
-        <button
+        {canManage && <button
           onClick={() => setShowForm(true)}
           className="px-4 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary-hover transition-colors"
         >
           + Add Customer
-        </button>
+        </button>}
       </div>
 
       {/* Search */}
@@ -65,6 +70,8 @@ export default function CustomersPage() {
         isLoading={isLoading}
         onEdit={handleEdit}
         onRefresh={refetch}
+        canManage={canManage}
+        canViewDetails={canViewDetails}
       />
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
 

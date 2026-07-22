@@ -1,4 +1,5 @@
-import { requireAuthUser } from "@/lib/auth/helpers";
+import { Permissions } from "@/lib/access/permissions";
+import { requireExchangePermission } from "@/lib/access/server";
 import { asyncHandler } from "@/lib/utils/asyncHandler";
 import { successResponse, errorResponse } from "@/lib/utils/response";
 
@@ -6,13 +7,13 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export const GET = asyncHandler(async (request) => {
-  const { user, supabase } = await requireAuthUser(request);
+  const { supabase, organizationId } = await requireExchangePermission(request, Permissions.EXPENSES_POST);
 
   const { data, error } = await supabase
     .schema("exchange")
     .from("expense_categories")
     .select("*")
-    .eq("user_id", user.id)
+    .eq("organization_id", organizationId)
     .eq("is_active", true)
     .order("name");
 
@@ -25,7 +26,7 @@ export const GET = asyncHandler(async (request) => {
 });
 
 export const POST = asyncHandler(async (request) => {
-  const { user, supabase } = await requireAuthUser(request);
+  const { user, supabase, organizationId } = await requireExchangePermission(request, Permissions.EXPENSES_POST);
   const body = await request.json();
 
   if (!body.name?.trim()) {
@@ -35,7 +36,7 @@ export const POST = asyncHandler(async (request) => {
   const { data, error } = await supabase
     .schema("exchange")
     .from("expense_categories")
-    .insert({ user_id: user.id, name: body.name.trim() })
+    .insert({ user_id: user.id, organization_id: organizationId, created_by: user.id, name: body.name.trim() })
     .select()
     .single();
 

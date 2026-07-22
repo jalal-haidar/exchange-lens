@@ -5,6 +5,9 @@ import { useExpenses, useExpenseCategories } from "@/hooks";
 import { fetchAPI } from "@/lib/utils/fetchAPI";
 import { toast } from "sonner";
 import { formatAmount } from "@/lib/utils/format";
+import { useExchangeAccess } from "@/contexts/ExchangeAccessContext";
+import { Permissions } from "@/lib/access/permissions";
+import PermissionGate from "@/components/access/PermissionGate";
 
 function formatDate(dateStr) {
   return new Date(dateStr).toLocaleDateString("en-PK", {
@@ -29,7 +32,10 @@ function createEmptyForm() {
   };
 }
 
-export default function ExpensesPage() {
+function ExpensesPageContent() {
+  const { can } = useExchangeAccess();
+  const canPost = can(Permissions.EXPENSES_POST);
+  const canReverse = can(Permissions.EXPENSES_REVERSE);
   const { expenses, isLoading, error, refetch } = useExpenses();
   const {
     categories,
@@ -120,15 +126,15 @@ export default function ExpensesPage() {
           <h1 className="text-2xl font-bold text-text-primary">Expenses</h1>
           <p className="text-text-secondary mt-1">Track business expenses</p>
         </div>
-        <button
+        {canPost && <button
           onClick={() => setShowForm(true)}
           className="px-4 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary-hover transition-colors"
         >
           + Add Expense
-        </button>
+        </button>}
       </div>
 
-      {showForm && (
+      {canPost && showForm && (
         <form onSubmit={handleSubmit} className="bg-surface-raised rounded-xl border border-border-theme p-6 mb-6">
           <h2 className="text-lg font-semibold text-text-primary mb-4">New Expense</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -203,7 +209,7 @@ export default function ExpensesPage() {
         </div>
       )}
 
-      {selectedExpense && (
+      {canReverse && selectedExpense && (
         <form onSubmit={handleReverse} className="mb-6 rounded-xl border border-danger/30 bg-badge-red-bg p-6">
           <h2 className="font-semibold text-danger">Reverse expense</h2>
           <p className="mt-1 text-sm text-text-secondary">
@@ -257,7 +263,7 @@ export default function ExpensesPage() {
                 <th className="text-left py-3 px-4 text-text-muted font-medium">Category</th>
                 <th className="text-left py-3 px-4 text-text-muted font-medium">Description</th>
                 <th className="text-right py-3 px-4 text-text-muted font-medium">Amount</th>
-                <th className="text-right py-3 px-4 text-text-muted font-medium">Action</th>
+                {canReverse && <th className="text-right py-3 px-4 text-text-muted font-medium">Action</th>}
               </tr>
             </thead>
             <tbody>
@@ -267,7 +273,7 @@ export default function ExpensesPage() {
                   <td className="py-3 px-4 text-text-primary">{expense.category?.name || "\u2014"}</td>
                   <td className="py-3 px-4 text-text-primary">{expense.description || "\u2014"}</td>
                   <td className="py-3 px-4 text-right font-semibold text-danger">{formatAmount(expense.amount)}</td>
-                  <td className="py-3 px-4 text-right">
+                  {canReverse && <td className="py-3 px-4 text-right">
                     <button
                       type="button"
                       onClick={() => { setSelectedExpense(expense); setReversalReason(""); }}
@@ -275,7 +281,7 @@ export default function ExpensesPage() {
                     >
                       Reverse
                     </button>
-                  </td>
+                  </td>}
                 </tr>
               ))}
             </tbody>
@@ -283,5 +289,13 @@ export default function ExpensesPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function ExpensesPage() {
+  return (
+    <PermissionGate permission={[Permissions.OPERATIONS_READ_ALL, Permissions.EXPENSES_READ_OWN]}>
+      <ExpensesPageContent />
+    </PermissionGate>
   );
 }

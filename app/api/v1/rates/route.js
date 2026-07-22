@@ -1,4 +1,5 @@
-import { requireAuthUser } from "@/lib/auth/helpers";
+import { Permissions } from "@/lib/access/permissions";
+import { requireExchangePermission } from "@/lib/access/server";
 import { asyncHandler } from "@/lib/utils/asyncHandler";
 import { successResponse, errorResponse } from "@/lib/utils/response";
 import { rateLimit, RateLimitPresets } from "@/lib/middleware";
@@ -13,7 +14,7 @@ export const GET = asyncHandler(async (request) => {
   const rateLimitResult = await readRateLimiter(request);
   if (rateLimitResult) return rateLimitResult;
 
-  const { user, supabase } = await requireAuthUser(request);
+  const { supabase, organizationId } = await requireExchangePermission(request, Permissions.RATES_READ);
 
   // Get latest rates for each currency
   const { data, error } = await supabase
@@ -23,7 +24,7 @@ export const GET = asyncHandler(async (request) => {
       *,
       currency:currencies(id, code, name, symbol)
     `)
-    .eq("user_id", user.id)
+    .eq("organization_id", organizationId)
     .order("effective_at", { ascending: false });
 
   if (error) {
@@ -46,7 +47,7 @@ export const POST = asyncHandler(async (request) => {
   const rateLimitResult = await writeRateLimiter(request);
   if (rateLimitResult) return rateLimitResult;
 
-  const { user, supabase } = await requireAuthUser(request);
+  const { user, supabase, organizationId } = await requireExchangePermission(request, Permissions.RATES_MANAGE);
   const body = await request.json();
 
   if (!body.rates || !Array.isArray(body.rates)) {
@@ -55,6 +56,8 @@ export const POST = asyncHandler(async (request) => {
 
   const inserts = body.rates.map((r) => ({
     user_id: user.id,
+    organization_id: organizationId,
+    created_by: user.id,
     currency_id: r.currency_id,
     buy_rate: Number(r.buy_rate),
     sell_rate: Number(r.sell_rate),

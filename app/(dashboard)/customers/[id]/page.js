@@ -5,8 +5,10 @@ import Link from "next/link";
 import { useCustomer, useCustomerLedger } from "@/hooks";
 import CustomerLedger from "@/components/customers/CustomerLedger";
 import { formatAmount, formatDateLong } from "@/lib/utils/format";
+import PermissionGate from "@/components/access/PermissionGate";
+import { Permissions } from "@/lib/access/permissions";
 
-export default function CustomerDetailPage() {
+function CustomerDetailContent() {
   const params = useParams();
   const { customer, isLoading: customerLoading } = useCustomer(params.id);
   const { ledger, balance, isLoading: ledgerLoading } = useCustomerLedger(params.id);
@@ -87,5 +89,13 @@ export default function CustomerDetailPage() {
       {/* Ledger */}
       <CustomerLedger ledger={ledger} isLoading={ledgerLoading} />
     </div>
+  );
+}
+
+export default function CustomerDetailPage() {
+  return (
+    <PermissionGate permission={Permissions.CUSTOMERS_READ}>
+      <CustomerDetailContent />
+    </PermissionGate>
   );
 }

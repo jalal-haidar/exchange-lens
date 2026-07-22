@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useReports } from "@/hooks";
 import { formatAmount } from "@/lib/utils/format";
+import PermissionGate from "@/components/access/PermissionGate";
+import { Permissions } from "@/lib/access/permissions";
 
 function getLocalDate() {
   const now = new Date();
@@ -24,6 +26,7 @@ export default function ReportsPage() {
   const { data, isLoading, error, refetch } = useReports(reportType, params);
 
   return (
+    <PermissionGate permission={Permissions.FINANCIAL_REPORTS_READ}>
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-text-primary">Reports</h1>
@@ -131,6 +134,7 @@ export default function ReportsPage() {
         </div>
       )}
     </div>
+    </PermissionGate>
   );
 }
 

@@ -1,7 +1,12 @@
 "use client";
 
 import { AppLayout } from "@/components/shared";
+import ExchangeAccessGate from "@/components/access/ExchangeAccessGate";
 
 export default function DashboardLayout({ children }) {
-  return <AppLayout>{children}</AppLayout>;
+  return (
+    <ExchangeAccessGate>
+      <AppLayout>{children}</AppLayout>
+    </ExchangeAccessGate>
+  );
 }

@@ -9,6 +9,9 @@ import { API_ENDPOINTS } from "@/lib/shared/api";
 import { TRANSACTION_TYPE_LABELS, TYPE_BADGE_CLASSES } from "@/lib/shared/constants";
 import { fetchAPI } from "@/lib/utils/fetchAPI";
 import { formatAmount, formatDateShort } from "@/lib/utils/format";
+import { useExchangeAccess } from "@/contexts/ExchangeAccessContext";
+import { Permissions } from "@/lib/access/permissions";
+import PermissionGate from "@/components/access/PermissionGate";
 
 function getReversal(transaction) {
   if (!transaction?.reversal) return null;
@@ -17,7 +20,9 @@ function getReversal(transaction) {
     : transaction.reversal;
 }
 
-export default function TransactionDetailPage() {
+function TransactionDetailContent() {
+  const { can } = useExchangeAccess();
+  const canReverse = can(Permissions.TRANSACTIONS_REVERSE);
   const { id } = useParams();
   const router = useRouter();
   const { transaction, isLoading, error, refetch } = useTransaction(id);
@@ -99,14 +104,14 @@ export default function TransactionDetailPage() {
           <h2 className="font-semibold text-danger">Reversed transaction</h2>
           <p className="mt-2 text-sm text-text-secondary">{reversal.reason}</p>
           <p className="mt-1 text-xs text-text-muted">Reversed {formatDateShort(reversal.created_at)}</p>
-          <Link
+          {canReverse && <Link
             href={replacementUrl}
             className="mt-4 inline-block rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover"
           >
             Create corrected replacement
-          </Link>
+          </Link>}
         </div>
-      ) : (
+      ) : canReverse ? (
         <div className="mt-6 rounded-xl border border-border-theme bg-surface-raised p-6">
           <h2 className="font-semibold text-text-primary">Correct this transaction</h2>
           <p className="mt-1 text-sm text-text-muted">
@@ -140,7 +145,7 @@ export default function TransactionDetailPage() {
             </button>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -151,5 +156,13 @@ function Detail({ label, value }) {
       <dt className="text-text-muted">{label}</dt>
       <dd className="mt-1 font-medium text-text-primary">{value}</dd>
     </div>
+  );
+}
+
+export default function TransactionDetailPage() {
+  return (
+    <PermissionGate permission={[Permissions.OPERATIONS_READ_ALL, Permissions.TRANSACTIONS_READ_OWN]}>
+      <TransactionDetailContent />
+    </PermissionGate>
   );
 }

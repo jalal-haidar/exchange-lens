@@ -1,4 +1,5 @@
-import { requireAuthUser } from "@/lib/auth/helpers";
+import { Permissions } from "@/lib/access/permissions";
+import { requireExchangePermission } from "@/lib/access/server";
 import { summarizeCashflow, summarizeProfitLoss } from "@/lib/domain/accounting";
 import { getUtcDateRange } from "@/lib/domain/dateRange";
 import { asyncHandler } from "@/lib/utils/asyncHandler";
@@ -12,7 +13,7 @@ function isActive(entry) {
 }
 
 export const GET = asyncHandler(async (request) => {
-  const { user, supabase } = await requireAuthUser(request);
+  const { supabase, organizationId } = await requireExchangePermission(request, Permissions.FINANCIAL_REPORTS_READ);
   const { searchParams } = new URL(request.url);
   const startDate = searchParams.get("start_date");
   const endDate = searchParams.get("end_date") || startDate;
@@ -34,14 +35,14 @@ export const GET = asyncHandler(async (request) => {
       .schema("exchange")
       .from("transactions")
       .select("type, amount_local, realized_margin_local, posted_at, reversal:transaction_reversals(id)")
-      .eq("user_id", user.id)
+      .eq("organization_id", organizationId)
       .gte("posted_at", range.start)
       .lt("posted_at", range.endExclusive),
     supabase
       .schema("exchange")
       .from("expenses")
       .select("amount, date, reversal:expense_reversals(id)")
-      .eq("user_id", user.id)
+      .eq("organization_id", organizationId)
       .gte("date", range.start)
       .lt("date", range.endExclusive),
   ]);

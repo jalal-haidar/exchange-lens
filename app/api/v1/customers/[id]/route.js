@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { requireAuthUser } from "@/lib/auth/helpers";
+import { Permissions } from "@/lib/access/permissions";
+import { requireExchangePermission } from "@/lib/access/server";
 import { asyncHandler } from "@/lib/utils/asyncHandler";
 import { successResponse, errorResponse } from "@/lib/utils/response";
 import { validateUUID, sanitizeString } from "@/lib/utils/validation";
@@ -14,14 +14,14 @@ export const GET = asyncHandler(async (request, { params }) => {
   const { id } = await params;
   validateUUID(id, "Customer ID");
 
-  const { user, supabase } = await requireAuthUser(request);
+  const { supabase, organizationId } = await requireExchangePermission(request, Permissions.CUSTOMERS_READ);
 
   const { data, error } = await supabase
     .schema("exchange")
     .from("customers")
     .select("*")
     .eq("id", id)
-    .eq("user_id", user.id)
+    .eq("organization_id", organizationId)
     .single();
 
   if (error || !data) {
@@ -38,7 +38,7 @@ export const PUT = asyncHandler(async (request, { params }) => {
   const { id } = await params;
   validateUUID(id, "Customer ID");
 
-  const { user, supabase } = await requireAuthUser(request);
+  const { supabase, organizationId } = await requireExchangePermission(request, Permissions.CUSTOMERS_MANAGE);
   const body = await request.json();
 
   const ALLOWED_COLUMNS = new Set(["name", "phone", "email", "address", "notes", "is_active"]);
@@ -59,7 +59,7 @@ export const PUT = asyncHandler(async (request, { params }) => {
     .from("customers")
     .update(updateData)
     .eq("id", id)
-    .eq("user_id", user.id)
+    .eq("organization_id", organizationId)
     .select()
     .single();
 
@@ -77,14 +77,14 @@ export const DELETE = asyncHandler(async (request, { params }) => {
   const { id } = await params;
   validateUUID(id, "Customer ID");
 
-  const { user, supabase } = await requireAuthUser(request);
+  const { supabase, organizationId } = await requireExchangePermission(request, Permissions.CUSTOMERS_MANAGE);
 
   const { data, error } = await supabase
     .schema("exchange")
     .from("customers")
     .update({ is_active: false })
     .eq("id", id)
-    .eq("user_id", user.id)
+    .eq("organization_id", organizationId)
     .eq("is_active", true)
     .select("id")
     .maybeSingle();

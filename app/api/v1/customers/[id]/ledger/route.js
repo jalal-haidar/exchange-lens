@@ -1,4 +1,5 @@
-import { requireAuthUser } from "@/lib/auth/helpers";
+import { Permissions } from "@/lib/access/permissions";
+import { requireExchangePermission } from "@/lib/access/server";
 import { calculateCustomerOutstanding } from "@/lib/domain/accounting";
 import { asyncHandler } from "@/lib/utils/asyncHandler";
 import { successResponse, errorResponse } from "@/lib/utils/response";
@@ -27,7 +28,7 @@ export const GET = asyncHandler(async (request, { params }) => {
   const { id } = await params;
   validateUUID(id, "Customer ID");
 
-  const { user, supabase } = await requireAuthUser(request);
+  const { supabase, organizationId } = await requireExchangePermission(request, Permissions.CUSTOMERS_BALANCE_READ);
   const { searchParams } = new URL(request.url);
   const { limit, offset } = parsePagination(searchParams, { defaultLimit: 20, maxLimit: 100 });
   const type = searchParams.get("type");
@@ -43,7 +44,7 @@ export const GET = asyncHandler(async (request, { params }) => {
       reversal:transaction_reversals(id, reason, created_at)
     `, { count: "exact" })
     .eq("customer_id", id)
-    .eq("user_id", user.id)
+    .eq("organization_id", organizationId)
     .neq("type", "expense")
     .is("reversal", null)
     .order("posted_at", { ascending: false });
@@ -59,7 +60,7 @@ export const GET = asyncHandler(async (request, { params }) => {
       .from("transactions")
       .select("id, type, amount_local, posted_at, created_at, reversal:transaction_reversals(id)")
       .eq("customer_id", id)
-      .eq("user_id", user.id)
+      .eq("organization_id", organizationId)
       .in("type", CREDIT_TYPES)
       .is("reversal", null)
       .order("posted_at", { ascending: true })

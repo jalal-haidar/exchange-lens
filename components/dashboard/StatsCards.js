@@ -1,6 +1,8 @@
 "use client";
 
 import { formatAmount } from "@/lib/utils/format";
+import { useExchangeAccess } from "@/contexts/ExchangeAccessContext";
+import { Permissions } from "@/lib/access/permissions";
 
 const stats = [
   { key: "totalBuy", label: "Total Buy", icon: "\u{1F4E5}", color: "text-stat-blue", bgColor: "bg-badge-blue-bg" },
@@ -12,10 +14,12 @@ const stats = [
 ];
 
 export default function StatsCards({ stats: data, isLoading }) {
+  const { can } = useExchangeAccess();
+  const visibleStats = stats.filter((stat) => stat.key !== "realizedProfit" || can(Permissions.FINANCIAL_REPORTS_READ));
   if (isLoading) {
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        {stats.map((stat) => (
+        {visibleStats.map((stat) => (
           <div key={stat.key} className="bg-surface-raised rounded-xl border border-border-theme p-4 animate-pulse">
             <div className="h-4 bg-skeleton rounded w-20 mb-3"></div>
             <div className="h-6 bg-skeleton rounded w-16"></div>
@@ -27,7 +31,7 @@ export default function StatsCards({ stats: data, isLoading }) {
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-      {stats.map((stat) => (
+      {visibleStats.map((stat) => (
         <div key={stat.key} className="bg-surface-raised rounded-xl border border-border-theme p-4">
           <div className="flex items-center gap-2 mb-2">
             <span className={`flex items-center justify-center w-8 h-8 rounded-lg ${stat.bgColor}`}>

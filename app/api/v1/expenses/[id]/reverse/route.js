@@ -1,4 +1,5 @@
-import { requireAuthUser } from "@/lib/auth/helpers";
+import { Permissions } from "@/lib/access/permissions";
+import { requireExchangePermission } from "@/lib/access/server";
 import { asyncHandler } from "@/lib/utils/asyncHandler";
 import { successResponse, errorResponse } from "@/lib/utils/response";
 import { validateUUID } from "@/lib/utils/validation";
@@ -12,7 +13,7 @@ export const POST = asyncHandler(async (request, { params }) => {
 
   const { id } = await params;
   validateUUID(id, "Expense ID");
-  const { supabase } = await requireAuthUser(request);
+  const { supabase } = await requireExchangePermission(request, Permissions.EXPENSES_REVERSE);
   const body = await request.json();
   const reason = body.reason?.trim();
 

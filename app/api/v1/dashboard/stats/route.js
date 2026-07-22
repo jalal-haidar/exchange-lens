@@ -1,4 +1,5 @@
-import { requireAuthUser } from "@/lib/auth/helpers";
+import { Permissions, hasPermission } from "@/lib/access/permissions";
+import { requireExchangePermission } from "@/lib/access/server";
 import {
   calculateCustomerOutstanding,
   summarizeCashflow,
@@ -23,7 +24,7 @@ export const GET = asyncHandler(async (request) => {
   const rateLimitResult = await readRateLimiter(request);
   if (rateLimitResult) return rateLimitResult;
 
-  const { user, supabase } = await requireAuthUser(request);
+  const { supabase, organizationId, access } = await requireExchangePermission(request, Permissions.ACCESS_READ);
   const { searchParams } = new URL(request.url);
   const date = searchParams.get("date");
   const timezone = searchParams.get("timezone") || "UTC";
@@ -49,7 +50,7 @@ export const GET = asyncHandler(async (request) => {
         currency:currencies(id, code, symbol),
         reversal:transaction_reversals(id)
       `)
-      .eq("user_id", user.id)
+      .eq("organization_id", organizationId)
       .gte("posted_at", range.start)
       .lt("posted_at", range.endExclusive)
       .order("posted_at", { ascending: false }),
@@ -57,20 +58,20 @@ export const GET = asyncHandler(async (request) => {
       .schema("exchange")
       .from("expenses")
       .select("amount, date, reversal:expense_reversals(id)")
-      .eq("user_id", user.id)
+      .eq("organization_id", organizationId)
       .gte("date", range.start)
       .lt("date", range.endExclusive),
     supabase
       .schema("exchange")
       .from("customers")
       .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id)
+      .eq("organization_id", organizationId)
       .eq("is_active", true),
     supabase
       .schema("exchange")
       .from("transactions")
       .select("type, amount_local, reversal:transaction_reversals(id)")
-      .eq("user_id", user.id)
+      .eq("organization_id", organizationId)
       .in("type", [TRANSACTION_TYPES.CREDIT_GIVEN, TRANSACTION_TYPES.CREDIT_RECEIVED]),
   ]);
 
@@ -87,7 +88,8 @@ export const GET = asyncHandler(async (request) => {
   const expenses = (expensesResult.data || []).filter(isActive);
   const credits = (creditsResult.data || []).filter(isActive);
   const cashflow = summarizeCashflow({ transactions, expenses });
-  const profit = summarizeProfitLoss({ transactions, expenses });
+  const canReadProfit = hasPermission(access, Permissions.FINANCIAL_REPORTS_READ);
+  const profit = canReadProfit ? summarizeProfitLoss({ transactions, expenses }) : null;
   return successResponse({
     data: {
       stats: {
@@ -97,7 +99,7 @@ export const GET = asyncHandler(async (request) => {
         totalCreditGiven: cashflow.total_credit_given,
         totalCreditReceived: cashflow.total_credit_received,
         netCashMovement: cashflow.net_cash_movement,
-        realizedProfit: profit.net_profit,
+        ...(profit ? { realizedProfit: profit.net_profit } : {}),
         totalCustomers: customersResult.count || 0,
         pendingCredits: calculateCustomerOutstanding(credits),
         transactionCount: transactions.length,

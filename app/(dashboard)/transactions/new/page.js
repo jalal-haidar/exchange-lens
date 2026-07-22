@@ -4,6 +4,8 @@ import { Suspense, useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useForm, useWatch } from "react-hook-form";
 import { useCustomers, useRates, useTransactionMutations } from "@/hooks";
+import PermissionGate from "@/components/access/PermissionGate";
+import { Permissions } from "@/lib/access/permissions";
 
 const TRANSACTION_TYPES = [
   { value: "buy", label: "Buy Currency", description: "Customer sells foreign currency to you" },
@@ -280,8 +282,10 @@ function NewTransactionForm() {
 
 export default function NewTransactionPage() {
   return (
-    <Suspense>
-      <NewTransactionForm />
-    </Suspense>
+    <PermissionGate permission={Permissions.TRANSACTIONS_POST}>
+      <Suspense>
+        <NewTransactionForm />
+      </Suspense>
+    </PermissionGate>
   );
 }

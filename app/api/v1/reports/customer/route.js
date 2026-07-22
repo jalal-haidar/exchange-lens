@@ -1,4 +1,5 @@
-import { requireAuthUser } from "@/lib/auth/helpers";
+import { Permissions } from "@/lib/access/permissions";
+import { requireExchangePermission } from "@/lib/access/server";
 import { calculateCustomerOutstanding } from "@/lib/domain/accounting";
 import { getUtcDateRange } from "@/lib/domain/dateRange";
 import { asyncHandler } from "@/lib/utils/asyncHandler";
@@ -16,7 +17,7 @@ function isActive(entry) {
 }
 
 export const GET = asyncHandler(async (request) => {
-  const { user, supabase } = await requireAuthUser(request);
+  const { supabase, organizationId } = await requireExchangePermission(request, Permissions.FINANCIAL_REPORTS_READ);
   const { searchParams } = new URL(request.url);
 
   const customerId = searchParams.get("customer_id");
@@ -45,7 +46,7 @@ export const GET = asyncHandler(async (request) => {
       currency:currencies(id, code, symbol),
       reversal:transaction_reversals(id)
     `)
-    .eq("user_id", user.id)
+    .eq("organization_id", organizationId)
     .eq("customer_id", customerId)
     .neq("type", TRANSACTION_TYPES.EXPENSE)
     .order("posted_at", { ascending: true })
@@ -79,7 +80,7 @@ export const GET = asyncHandler(async (request) => {
     .from("customers")
     .select("id, name, phone, email")
     .eq("id", customerId)
-    .eq("user_id", user.id)
+    .eq("organization_id", organizationId)
     .maybeSingle();
 
   if (!customer) {

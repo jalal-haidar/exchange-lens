@@ -3,8 +3,12 @@
 import { useState } from "react";
 import { useRates, useRateMutations } from "@/hooks";
 import RateManager from "@/components/rates/RateManager";
+import { useExchangeAccess } from "@/contexts/ExchangeAccessContext";
+import { Permissions } from "@/lib/access/permissions";
 
 export default function RatesPage() {
+  const { can } = useExchangeAccess();
+  const canManage = can(Permissions.RATES_MANAGE);
   const { rates, isLoading, error, refetch } = useRates();
   const { updateRates } = useRateMutations();
 
@@ -12,7 +16,7 @@ export default function RatesPage() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-text-primary">Exchange Rates</h1>
-        <p className="text-text-secondary mt-1">Manage buy and sell rates for each currency</p>
+        <p className="text-text-secondary mt-1">{canManage ? "Manage buy and sell rates for each currency" : "Current buy and sell rates"}</p>
       </div>
 
       {error && (
@@ -23,7 +27,7 @@ export default function RatesPage() {
         </div>
       )}
 
-      <RateManager rates={rates} isLoading={isLoading} onUpdate={updateRates} onRefresh={refetch} />
+      <RateManager rates={rates} isLoading={isLoading} onUpdate={updateRates} onRefresh={refetch} readOnly={!canManage} />
     </div>
   );
 }

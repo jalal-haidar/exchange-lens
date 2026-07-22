@@ -13,7 +13,7 @@ function formatDate(dateStr) {
   });
 }
 
-export default function CustomerList({ customers, isLoading, onEdit, onRefresh }) {
+export default function CustomerList({ customers, isLoading, onEdit, onRefresh, canViewDetails = true, canManage = true }) {
   const { deleteCustomer } = useCustomerMutations();
   const [deactivatingCustomer, setDeactivatingCustomer] = useState(null);
 
@@ -42,7 +42,7 @@ export default function CustomerList({ customers, isLoading, onEdit, onRefresh }
         {customers.map((customer) => (
           <div key={customer.id} className="bg-surface-raised rounded-xl border border-border-theme p-4 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
-              <Link href={`/customers/${customer.id}`} className="flex-1">
+              {canViewDetails ? <Link href={`/customers/${customer.id}`} className="flex-1">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
                     {customer.name.charAt(0).toUpperCase()}
@@ -57,9 +57,9 @@ export default function CustomerList({ customers, isLoading, onEdit, onRefresh }
                     </p>
                   </div>
                 </div>
-              </Link>
-              <div className="flex items-center gap-2">
-                <p className="text-xs text-text-muted">{formatDate(customer.created_at)}</p>
+              </Link> : <div className="flex flex-1 items-center gap-4"><div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 font-bold text-primary">{customer.name.charAt(0).toUpperCase()}</div><div><p className="font-medium text-text-primary">{customer.name}</p><p className="text-sm text-text-muted">{customer.phone || "No phone number"}</p></div></div>}
+              {canManage && <div className="flex items-center gap-2">
+                {customer.created_at && <p className="text-xs text-text-muted">{formatDate(customer.created_at)}</p>}
                 <button
                   onClick={() => onEdit(customer)}
                   aria-label={`Edit ${customer.name}`}
@@ -74,12 +74,12 @@ export default function CustomerList({ customers, isLoading, onEdit, onRefresh }
                 >
                   Deactivate
                 </button>
-              </div>
+              </div>}
             </div>
           </div>
         ))}
       </div>
-      <ConfirmDialog
+      {canManage && <ConfirmDialog
         open={!!deactivatingCustomer}
         title="Deactivate Customer"
         message={`Deactivate ${deactivatingCustomer?.name}? Their financial history will be preserved, but they will no longer appear in active customer lists.`}
@@ -90,7 +90,7 @@ export default function CustomerList({ customers, isLoading, onEdit, onRefresh }
           onRefresh();
         }}
         onCancel={() => setDeactivatingCustomer(null)}
-      />
+      />}
     </>
   );
 }

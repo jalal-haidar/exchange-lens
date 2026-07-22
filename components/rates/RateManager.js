@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-export default function RateManager({ rates, isLoading, onUpdate, onRefresh }) {
+export default function RateManager({ rates, isLoading, onUpdate, onRefresh, readOnly = false }) {
   const [editingRates, setEditingRates] = useState({});
   const [isSaving, setIsSaving] = useState(false);
 
@@ -49,7 +49,7 @@ export default function RateManager({ rates, isLoading, onUpdate, onRefresh }) {
 
   return (
     <div>
-      {hasChanges && (
+      {!readOnly && hasChanges && (
         <div className="mb-4 p-3 bg-primary/10 border border-primary/20 rounded-lg flex items-center justify-between">
           <p className="text-sm text-primary font-medium">You have unsaved changes</p>
           <div className="flex gap-2">
@@ -103,8 +103,9 @@ export default function RateManager({ rates, isLoading, onUpdate, onRefresh }) {
                       type="number"
                       step="0.000001"
                       min="0"
+                      readOnly={readOnly}
                       value={edited.buy_rate ?? rate.buy_rate}
-                      onChange={(e) => handleRateChange(rate.currency_id, "buy_rate", e.target.value)}
+                      onChange={readOnly ? undefined : (e) => handleRateChange(rate.currency_id, "buy_rate", e.target.value)}
                       className="w-28 text-right px-2 py-1 bg-surface border border-border-theme rounded text-text-primary focus:outline-none focus:ring-2 focus:ring-ring"
                     />
                   </td>
@@ -113,8 +114,9 @@ export default function RateManager({ rates, isLoading, onUpdate, onRefresh }) {
                       type="number"
                       step="0.000001"
                       min="0"
+                      readOnly={readOnly}
                       value={edited.sell_rate ?? rate.sell_rate}
-                      onChange={(e) => handleRateChange(rate.currency_id, "sell_rate", e.target.value)}
+                      onChange={readOnly ? undefined : (e) => handleRateChange(rate.currency_id, "sell_rate", e.target.value)}
                       className="w-28 text-right px-2 py-1 bg-surface border border-border-theme rounded text-text-primary focus:outline-none focus:ring-2 focus:ring-ring"
                     />
                   </td>

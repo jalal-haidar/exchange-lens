@@ -39,6 +39,16 @@ export async function loginAndGetTokens() {
     password: process.env.TEST_USER_PASSWORD,
   });
   if (error) throw new Error(`Login failed: ${error.message}`);
+  const { data: access, error: accessError } = await client
+    .schema("exchange")
+    .rpc("get_access_context");
+  if (accessError) throw new Error(`Exchange access setup failed: ${accessError.message}`);
+  if (access?.state === "onboarding") {
+    const { error: organizationError } = await client
+      .schema("exchange")
+      .rpc("create_organization", { p_name: "E2E QA Exchange" });
+    if (organizationError) throw new Error(`Organization setup failed: ${organizationError.message}`);
+  }
   return {
     accessToken: data.session.access_token,
     refreshToken: data.session.refresh_token,
@@ -105,6 +115,7 @@ export function createApi(accessToken) {
     get: (path) => request("GET", path),
     post: (path, body) => request("POST", path, body),
     put: (path, body) => request("PUT", path, body),
+    patch: (path, body) => request("PATCH", path, body),
     del: (path) => request("DELETE", path),
   };
 }

@@ -1,4 +1,5 @@
-import { requireAuthUser } from "@/lib/auth/helpers";
+import { Permissions } from "@/lib/access/permissions";
+import { requireExchangePermission } from "@/lib/access/server";
 import { prepareExpenseInput } from "@/lib/domain/expenseInput";
 import { asyncHandler } from "@/lib/utils/asyncHandler";
 import { successResponse, errorResponse } from "@/lib/utils/response";
@@ -14,20 +15,20 @@ export const GET = asyncHandler(async (request) => {
   const rateLimitResult = await readRateLimiter(request);
   if (rateLimitResult) return rateLimitResult;
 
-  const { user, supabase } = await requireAuthUser(request);
+  const { supabase, organizationId } = await requireExchangePermission(request, [Permissions.OPERATIONS_READ_ALL, Permissions.EXPENSES_READ_OWN]);
   const [expensesResult, reversalsResult] = await Promise.all([
     supabase
       .schema("exchange")
       .from("expenses")
       .select("*, category:expense_categories(id, name)")
-      .eq("user_id", user.id)
+      .eq("organization_id", organizationId)
       .order("date", { ascending: false })
       .limit(100),
     supabase
       .schema("exchange")
       .from("expense_reversals")
       .select("expense_id")
-      .eq("user_id", user.id),
+      .eq("organization_id", organizationId),
   ]);
 
   if (expensesResult.error || reversalsResult.error) {
@@ -52,7 +53,7 @@ export const POST = asyncHandler(async (request) => {
   const rateLimitResult = await writeRateLimiter(request);
   if (rateLimitResult) return rateLimitResult;
 
-  const { user, supabase } = await requireAuthUser(request);
+  const { supabase, organizationId } = await requireExchangePermission(request, Permissions.EXPENSES_POST);
   const body = await request.json();
 
   let expenseInput;
@@ -90,7 +91,7 @@ export const POST = asyncHandler(async (request) => {
     .from("expenses")
     .select("*, category:expense_categories(id, name)")
     .eq("id", postedExpense.id)
-    .eq("user_id", user.id)
+    .eq("organization_id", organizationId)
     .single();
 
   if (hydrateError) {

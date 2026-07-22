@@ -1,4 +1,5 @@
-import { requireAuthUser } from "@/lib/auth/helpers";
+import { Permissions } from "@/lib/access/permissions";
+import { requireExchangePermission } from "@/lib/access/server";
 import { asyncHandler } from "@/lib/utils/asyncHandler";
 import { successResponse, errorResponse } from "@/lib/utils/response";
 import { parsePagination } from "@/lib/utils/validation";
@@ -15,7 +16,7 @@ export const GET = asyncHandler(async (request) => {
   const rateLimitResult = await readRateLimiter(request);
   if (rateLimitResult) return rateLimitResult;
 
-  const { user, supabase } = await requireAuthUser(request);
+  const { supabase, organizationId } = await requireExchangePermission(request, [Permissions.OPERATIONS_READ_ALL, Permissions.TRANSACTIONS_READ_OWN]);
   const { searchParams } = new URL(request.url);
   const { limit, offset } = parsePagination(searchParams, { defaultLimit: 20, maxLimit: 50 });
 
@@ -35,7 +36,7 @@ export const GET = asyncHandler(async (request) => {
       currency:currencies(id, code, name, symbol),
       reversal:transaction_reversals(id, reason, created_at)
     `, { count: "exact" })
-    .eq("user_id", user.id)
+    .eq("organization_id", organizationId)
     .neq("type", "expense")
     .is("reversal", null)
     .order("posted_at", { ascending: false });
@@ -67,7 +68,7 @@ export const POST = asyncHandler(async (request) => {
   const rateLimitResult = await writeRateLimiter(request);
   if (rateLimitResult) return rateLimitResult;
 
-  const { user, supabase } = await requireAuthUser(request);
+  const { supabase, organizationId } = await requireExchangePermission(request, Permissions.TRANSACTIONS_POST);
   const body = await request.json();
 
   let transactionInput;
@@ -109,7 +110,7 @@ export const POST = asyncHandler(async (request) => {
       currency:currencies(id, code, name, symbol)
     `)
     .eq("id", postedTransaction.id)
-    .eq("user_id", user.id)
+    .eq("organization_id", organizationId)
     .single();
 
   if (hydrateError) {

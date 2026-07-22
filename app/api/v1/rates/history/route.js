@@ -1,4 +1,5 @@
-import { requireAuthUser } from "@/lib/auth/helpers";
+import { Permissions } from "@/lib/access/permissions";
+import { requireExchangePermission } from "@/lib/access/server";
 import { asyncHandler } from "@/lib/utils/asyncHandler";
 import { successResponse, errorResponse } from "@/lib/utils/response";
 import { validateUUID } from "@/lib/utils/validation";
@@ -7,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export const GET = asyncHandler(async (request) => {
-  const { user, supabase } = await requireAuthUser(request);
+  const { supabase, organizationId } = await requireExchangePermission(request, Permissions.RATES_READ);
   const { searchParams } = new URL(request.url);
   const currencyId = searchParams.get("currency_id");
 
@@ -22,7 +23,7 @@ export const GET = asyncHandler(async (request) => {
       *,
       currency:currencies(id, code, name, symbol)
     `)
-    .eq("user_id", user.id)
+    .eq("organization_id", organizationId)
     .order("effective_at", { ascending: false });
 
   if (currencyId) {

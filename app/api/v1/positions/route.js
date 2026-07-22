@@ -1,4 +1,5 @@
-import { requireAuthUser } from "@/lib/auth/helpers";
+import { Permissions, hasPermission } from "@/lib/access/permissions";
+import { requireExchangePermission } from "@/lib/access/server";
 import { prepareOpeningPositionInput } from "@/lib/domain/positionInput";
 import { asyncHandler } from "@/lib/utils/asyncHandler";
 import { successResponse, errorResponse } from "@/lib/utils/response";
@@ -14,7 +15,22 @@ export const GET = asyncHandler(async (request) => {
   const rateLimitResult = await readRateLimiter(request);
   if (rateLimitResult) return rateLimitResult;
 
-  const { user, supabase } = await requireAuthUser(request);
+  const { supabase, organizationId, access } = await requireExchangePermission(request, Permissions.POSITION_QUANTITY_READ);
+  if (!hasPermission(access, Permissions.POSITION_COST_READ)) {
+    const { data, error } = await supabase.schema("exchange").rpc("get_available_positions");
+    if (error) return errorResponse("Failed to fetch currency positions", 500);
+    const positions = (data || []).map((position) => ({
+      currency: {
+        id: position.currency_id,
+        code: position.currency_code,
+        name: position.currency_name,
+        symbol: position.currency_symbol,
+      },
+      currency_id: position.currency_id,
+      quantity: position.quantity,
+    }));
+    return successResponse({ data: { positions, costRestricted: true } });
+  }
   const [currenciesResult, positionsResult] = await Promise.all([
     supabase
       .schema("exchange")
@@ -26,7 +42,7 @@ export const GET = asyncHandler(async (request) => {
       .schema("exchange")
       .from("currency_positions")
       .select("*")
-      .eq("user_id", user.id),
+      .eq("organization_id", organizationId),
   ]);
 
   if (currenciesResult.error || positionsResult.error) {
@@ -59,7 +75,7 @@ export const POST = asyncHandler(async (request) => {
   const rateLimitResult = await writeRateLimiter(request);
   if (rateLimitResult) return rateLimitResult;
 
-  const { supabase } = await requireAuthUser(request);
+  const { supabase } = await requireExchangePermission(request, Permissions.OPENING_POSITIONS_MANAGE);
   const body = await request.json();
   let input;
   try {
