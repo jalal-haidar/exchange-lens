@@ -4,12 +4,12 @@ import Link from "next/link";
 import { TRANSACTION_TYPE_LABELS, TYPE_BADGE_CLASSES } from "@/lib/shared/constants";
 import { formatAmount, formatDateShort } from "@/lib/utils/format";
 
-export default function TransactionList({ transactions, isLoading, onRefresh }) {
+export default function TransactionList({ transactions, isLoading }) {
   if (isLoading) {
     return (
       <div className="space-y-3">
-        {[...Array(8)].map((_, i) => (
-          <div key={i} className="h-16 bg-surface-raised rounded-xl border border-border-theme animate-pulse"></div>
+        {[...Array(8)].map((_, index) => (
+          <div key={index} className="h-16 bg-surface-raised rounded-xl border border-border-theme animate-pulse"></div>
         ))}
       </div>
     );
@@ -32,36 +32,36 @@ export default function TransactionList({ transactions, isLoading, onRefresh }) 
 
   return (
     <div className="space-y-2">
-      {transactions.map((tx) => (
+      {transactions.map((transaction) => (
         <Link
-          key={tx.id}
-          href={`/transactions/${tx.id}`}
+          key={transaction.id}
+          href={`/transactions/${transaction.id}`}
           className="block bg-surface-raised rounded-xl border border-border-theme p-4 hover:shadow-md transition-shadow"
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className={`px-2 py-1 rounded-md text-xs font-medium ${TYPE_BADGE_CLASSES[tx.type]}`}>
-                {TRANSACTION_TYPE_LABELS[tx.type]}
+              <span className={`px-2 py-1 rounded-md text-xs font-medium ${TYPE_BADGE_CLASSES[transaction.type]}`}>
+                {TRANSACTION_TYPE_LABELS[transaction.type]}
               </span>
               <div>
                 <p className="text-sm font-medium text-text-primary">
-                  {tx.customer?.name || tx.description || "—"}
+                  {transaction.customer?.name || transaction.description || "\u2014"}
                 </p>
                 <p className="text-xs text-text-muted">
-                  {tx.currency?.code} {tx.currency?.symbol} • {formatDateShort(tx.created_at)}
+                  {transaction.currency?.code} {transaction.currency?.symbol} {"\u2022"} {formatDateShort(transaction.posted_at || transaction.created_at)}
                 </p>
               </div>
             </div>
             <div className="text-right">
               <p className={`text-sm font-semibold ${
-                tx.type === "sell" || tx.type === "buy" || tx.type === "credit_received"
+                transaction.type === "sell" || transaction.type === "buy" || transaction.type === "credit_received"
                   ? "text-success" : "text-danger"
               }`}>
-                {formatAmount(tx.amount_local)}
+                {formatAmount(transaction.amount_local)}
               </p>
-              {tx.amount_foreign > 0 && (
+              {transaction.amount_foreign > 0 && (
                 <p className="text-xs text-text-muted">
-                  {tx.currency?.symbol}{tx.amount_foreign}
+                  {transaction.currency?.symbol}{transaction.amount_foreign}
                 </p>
               )}
             </div>

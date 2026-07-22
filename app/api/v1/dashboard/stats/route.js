@@ -1,4 +1,10 @@
 import { requireAuthUser } from "@/lib/auth/helpers";
+import {
+  calculateCustomerOutstanding,
+  summarizeCashflow,
+  summarizeProfitLoss,
+} from "@/lib/domain/accounting";
+import { getUtcDayRange } from "@/lib/domain/dateRange";
 import { asyncHandler } from "@/lib/utils/asyncHandler";
 import { successResponse, errorResponse } from "@/lib/utils/response";
 import { rateLimit, RateLimitPresets } from "@/lib/middleware";
@@ -9,89 +15,91 @@ const readRateLimiter = rateLimit(RateLimitPresets.standard);
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+function isActive(entry) {
+  return !entry.reversal || (Array.isArray(entry.reversal) && entry.reversal.length === 0);
+}
+
 export const GET = asyncHandler(async (request) => {
   const rateLimitResult = await readRateLimiter(request);
   if (rateLimitResult) return rateLimitResult;
 
   const { user, supabase } = await requireAuthUser(request);
   const { searchParams } = new URL(request.url);
+  const date = searchParams.get("date");
+  const timezone = searchParams.get("timezone") || "UTC";
 
-  const date = searchParams.get("date") || new Date().toISOString().split("T")[0];
-  const startDate = `${date}T00:00:00.000Z`;
-  const endDate = `${date}T23:59:59.999Z`;
-
-  // Get today's transactions
-  const { data: transactions, error: txError } = await supabase
-    .schema("exchange")
-    .from("transactions")
-    .select(`
-      *,
-      customer:customers(id, name),
-      currency:currencies(id, code, symbol)
-    `)
-    .eq("user_id", user.id)
-    .gte("created_at", startDate)
-    .lte("created_at", endDate)
-    .order("created_at", { ascending: false });
-
-  if (txError) {
-    console.error("Dashboard stats TX error:", txError);
-    return errorResponse(`Failed to fetch dashboard stats: ${txError.message}`, 500);
+  if (!date) {
+    return errorResponse("Date is required", 400);
   }
 
-  // Calculate stats
-  let totalBuy = 0;
-  let totalSell = 0;
-  let totalExpenses = 0;
-  let totalCreditGiven = 0;
-  let totalCreditReceived = 0;
+  let range;
+  try {
+    range = getUtcDayRange(date, timezone);
+  } catch (error) {
+    return errorResponse(error.message, 400);
+  }
 
-  transactions.forEach((t) => {
-    const amount = Number(t.amount_local);
-    switch (t.type) {
-      case TRANSACTION_TYPES.BUY: totalBuy += amount; break;
-      case TRANSACTION_TYPES.SELL: totalSell += amount; break;
-      case TRANSACTION_TYPES.EXPENSE: totalExpenses += amount; break;
-      case TRANSACTION_TYPES.CREDIT_GIVEN: totalCreditGiven += amount; break;
-      case TRANSACTION_TYPES.CREDIT_RECEIVED: totalCreditReceived += amount; break;
-    }
-  });
+  const [transactionsResult, expensesResult, customersResult, creditsResult] = await Promise.all([
+    supabase
+      .schema("exchange")
+      .from("transactions")
+      .select(`
+        *,
+        customer:customers(id, name),
+        currency:currencies(id, code, symbol),
+        reversal:transaction_reversals(id)
+      `)
+      .eq("user_id", user.id)
+      .gte("posted_at", range.start)
+      .lt("posted_at", range.endExclusive)
+      .order("posted_at", { ascending: false }),
+    supabase
+      .schema("exchange")
+      .from("expenses")
+      .select("amount, date, reversal:expense_reversals(id)")
+      .eq("user_id", user.id)
+      .gte("date", range.start)
+      .lt("date", range.endExclusive),
+    supabase
+      .schema("exchange")
+      .from("customers")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("is_active", true),
+    supabase
+      .schema("exchange")
+      .from("transactions")
+      .select("type, amount_local, reversal:transaction_reversals(id)")
+      .eq("user_id", user.id)
+      .in("type", [TRANSACTION_TYPES.CREDIT_GIVEN, TRANSACTION_TYPES.CREDIT_RECEIVED]),
+  ]);
 
-  const profit = totalSell - totalBuy - totalExpenses;
+  const queryError = transactionsResult.error
+    || expensesResult.error
+    || customersResult.error
+    || creditsResult.error;
+  if (queryError) {
+    console.error("Dashboard stats error", queryError);
+    return errorResponse("Failed to fetch dashboard stats", 500);
+  }
 
-  // Get total customers count
-  const { count: totalCustomers } = await supabase
-    .schema("exchange")
-    .from("customers")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", user.id);
-
-  // Get pending credits
-  const { data: creditTransactions } = await supabase
-    .schema("exchange")
-    .from("transactions")
-    .select("type, amount_local")
-    .eq("user_id", user.id)
-    .in("type", [TRANSACTION_TYPES.CREDIT_GIVEN, TRANSACTION_TYPES.CREDIT_RECEIVED]);
-
-  let totalOwed = 0;
-  let totalPaid = 0;
-  creditTransactions?.forEach((t) => {
-    if (t.type === TRANSACTION_TYPES.CREDIT_GIVEN) totalOwed += Number(t.amount_local);
-    if (t.type === TRANSACTION_TYPES.CREDIT_RECEIVED) totalPaid += Number(t.amount_local);
-  });
-
+  const transactions = (transactionsResult.data || []).filter(isActive);
+  const expenses = (expensesResult.data || []).filter(isActive);
+  const credits = (creditsResult.data || []).filter(isActive);
+  const cashflow = summarizeCashflow({ transactions, expenses });
+  const profit = summarizeProfitLoss({ transactions, expenses });
   return successResponse({
     data: {
       stats: {
-        totalBuy,
-        totalSell,
-        totalExpenses,
-        totalCreditGiven,
-        totalCreditReceived,
-        profit,
-        totalCustomers: totalCustomers || 0,
-        pendingCredits: totalOwed - totalPaid,
+        totalBuy: cashflow.total_buy,
+        totalSell: cashflow.total_sell,
+        totalExpenses: cashflow.total_expenses,
+        totalCreditGiven: cashflow.total_credit_given,
+        totalCreditReceived: cashflow.total_credit_received,
+        netCashMovement: cashflow.net_cash_movement,
+        realizedProfit: profit.net_profit,
+        totalCustomers: customersResult.count || 0,
+        pendingCredits: calculateCustomerOutstanding(credits),
         transactionCount: transactions.length,
       },
       recentTransactions: transactions.slice(0, 10),

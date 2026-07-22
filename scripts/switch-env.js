@@ -3,6 +3,7 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(__dirname, "..");
 const env = process.argv[2];
 
 if (!env || !["development", "production"].includes(env)) {
@@ -10,8 +11,8 @@ if (!env || !["development", "production"].includes(env)) {
   process.exit(1);
 }
 
-const source = resolve(__dirname, `.env.${env}`);
-const target = resolve(__dirname, ".env.local");
+const source = resolve(repoRoot, `.env.${env}`);
+const target = resolve(repoRoot, ".env.local");
 
 if (!existsSync(source)) {
   console.error(`Environment file not found: ${source}`);
@@ -19,4 +20,4 @@ if (!existsSync(source)) {
 }
 
 cpSync(source, target, { force: true });
-console.log(`✅ Switched to ${env} environment (.env.local)`);
+console.log(`Switched to ${env} environment (.env.local)`);

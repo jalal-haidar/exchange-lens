@@ -4,11 +4,24 @@ import { useState } from "react";
 import { useReports } from "@/hooks";
 import { formatAmount } from "@/lib/utils/format";
 
+function getLocalDate() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export default function ReportsPage() {
   const [reportType, setReportType] = useState("profit-loss");
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
-
-  const { data, isLoading, error, refetch } = useReports(reportType, { date });
+  const [date, setDate] = useState(getLocalDate);
+  const [timezone] = useState(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+  );
+  const params = reportType === "profit-loss"
+    ? { start_date: date, end_date: date, timezone }
+    : { date, timezone };
+  const { data, isLoading, error, refetch } = useReports(reportType, params);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
@@ -17,28 +30,27 @@ export default function ReportsPage() {
         <p className="text-text-secondary mt-1">View financial reports and analytics</p>
       </div>
 
-      {/* Report Type Selector */}
       <div className="flex flex-wrap gap-3 mb-6">
         {[
           { value: "profit-loss", label: "Profit & Loss" },
           { value: "summary", label: "Daily Summary" },
-        ].map((r) => (
+        ].map((report) => (
           <button
-            key={r.value}
-            onClick={() => setReportType(r.value)}
+            key={report.value}
+            onClick={() => setReportType(report.value)}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              reportType === r.value
+              reportType === report.value
                 ? "bg-primary text-white"
                 : "bg-surface-raised border border-border-theme text-text-secondary hover:bg-hover-bg"
             }`}
           >
-            {r.label}
+            {report.label}
           </button>
         ))}
         <input
           type="date"
           value={date}
-          onChange={(e) => setDate(e.target.value)}
+          onChange={(event) => setDate(event.target.value)}
           className="px-4 py-2 bg-surface-raised border border-border-theme rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-ring"
         />
       </div>
@@ -57,98 +69,56 @@ export default function ReportsPage() {
         </div>
       ) : reportType === "profit-loss" && data ? (
         <div className="space-y-6">
-          {/* Revenue */}
-          <div className="bg-surface-raised rounded-xl border border-border-theme p-6">
-            <h2 className="text-lg font-semibold text-text-primary mb-4">Revenue</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              <div className="p-4 bg-badge-green-bg rounded-lg">
-                <p className="text-sm text-text-secondary">Total Sell</p>
-                <p className="text-xl font-bold text-success">{formatAmount(data.revenue?.totalSell)}</p>
-              </div>
-              <div className="p-4 bg-badge-red-bg rounded-lg">
-                <p className="text-sm text-text-secondary">Total Buy</p>
-                <p className="text-xl font-bold text-danger">{formatAmount(data.revenue?.totalBuy)}</p>
-              </div>
-              <div className="p-4 bg-badge-green-bg rounded-lg">
-                <p className="text-sm text-text-secondary">Gross Profit</p>
-                <p className="text-xl font-bold text-success">{formatAmount(data.revenue?.grossProfit)}</p>
-              </div>
+          <section className="bg-surface-raised rounded-xl border border-border-theme p-6">
+            <h2 className="text-lg font-semibold text-text-primary mb-1">Cash Movement</h2>
+            <p className="text-sm text-text-muted mb-4">Money paid and received during this period</p>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <Metric label="Currency bought" value={data.cashflow?.totalBuy} tone="danger" />
+              <Metric label="Currency sold" value={data.cashflow?.totalSell} tone="success" />
+              <Metric label="Expenses paid" value={data.cashflow?.totalExpenses} tone="danger" />
+              <Metric label="Net cash movement" value={data.cashflow?.netCashMovement} signed />
             </div>
-          </div>
+          </section>
 
-          {/* Expenses */}
-          <div className="bg-surface-raised rounded-xl border border-border-theme p-6">
-            <h2 className="text-lg font-semibold text-text-primary mb-4">Expenses</h2>
-            <div className="p-4 bg-badge-red-bg rounded-lg inline-block">
-              <p className="text-sm text-text-secondary">Total Expenses</p>
-              <p className="text-xl font-bold text-danger">{formatAmount(data.expenses?.totalExpenses)}</p>
+          <section className="bg-surface-raised rounded-xl border border-border-theme p-6">
+            <h2 className="text-lg font-semibold text-text-primary mb-1">Realized Performance</h2>
+            <p className="text-sm text-text-muted mb-4">Weighted-average margin earned on completed sales</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Metric label="Realized FX margin" value={data.profit?.realizedFxMargin} signed />
+              <Metric label="Business expenses" value={data.profit?.totalExpenses} tone="danger" />
+              <Metric label="Net realized profit" value={data.profit?.netProfit} signed emphasized />
             </div>
-          </div>
+          </section>
 
-          {/* Net Profit */}
-          <div className="bg-surface-raised rounded-xl border border-border-theme p-6">
-            <h2 className="text-lg font-semibold text-text-primary mb-4">Net Profit</h2>
-            <div className={`p-4 rounded-lg inline-block ${data.netProfit >= 0 ? "bg-badge-green-bg" : "bg-badge-red-bg"}`}>
-              <p className="text-sm text-text-secondary">Net Profit</p>
-              <p className={`text-2xl font-bold ${data.netProfit >= 0 ? "text-success" : "text-danger"}`}>
-                {formatAmount(data.netProfit)}
-              </p>
+          <section className="bg-surface-raised rounded-xl border border-border-theme p-6">
+            <h2 className="text-lg font-semibold text-text-primary mb-4">Customer Credit Movement</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Metric label="Credit given" value={data.cashflow?.totalCreditGiven} tone="danger" />
+              <Metric label="Payments received" value={data.cashflow?.totalCreditReceived} tone="success" />
             </div>
-          </div>
-
-          {/* Credits */}
-          <div className="bg-surface-raised rounded-xl border border-border-theme p-6">
-            <h2 className="text-lg font-semibold text-text-primary mb-4">Credits</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              <div className="p-4 bg-badge-orange-bg rounded-lg">
-                <p className="text-sm text-text-secondary">Credit Given</p>
-                <p className="text-xl font-bold text-warning">{formatAmount(data.credits?.totalCreditGiven)}</p>
-              </div>
-              <div className="p-4 bg-badge-green-bg rounded-lg">
-                <p className="text-sm text-text-secondary">Payment Received</p>
-                <p className="text-xl font-bold text-success">{formatAmount(data.credits?.totalCreditReceived)}</p>
-              </div>
-              <div className="p-4 bg-badge-blue-bg rounded-lg">
-                <p className="text-sm text-text-secondary">Net Credits</p>
-                <p className="text-xl font-bold text-info">{formatAmount(data.credits?.netCredits)}</p>
-              </div>
-            </div>
-          </div>
+          </section>
         </div>
       ) : reportType === "summary" && data ? (
         <div className="bg-surface-raised rounded-xl border border-border-theme p-6">
-          <h2 className="text-lg font-semibold text-text-primary mb-4">
-            Daily Summary — {data.date}
-          </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            <div className="p-4 bg-badge-green-bg rounded-lg">
-              <p className="text-sm text-text-secondary">Total Buy</p>
-              <p className="text-xl font-bold text-success">{formatAmount(data.summary?.totalBuy)}</p>
-            </div>
-            <div className="p-4 bg-badge-blue-bg rounded-lg">
-              <p className="text-sm text-text-secondary">Total Sell</p>
-              <p className="text-xl font-bold text-info">{formatAmount(data.summary?.totalSell)}</p>
-            </div>
-            <div className="p-4 bg-badge-red-bg rounded-lg">
-              <p className="text-sm text-text-secondary">Expenses</p>
-              <p className="text-xl font-bold text-danger">{formatAmount(data.summary?.totalExpenses)}</p>
-            </div>
-            <div className={`p-4 rounded-lg ${data.summary?.profit >= 0 ? "bg-badge-green-bg" : "bg-badge-red-bg"}`}>
-              <p className="text-sm text-text-secondary">Profit</p>
-              <p className={`text-xl font-bold ${data.summary?.profit >= 0 ? "text-success" : "text-danger"}`}>
-                {formatAmount(data.summary?.profit)}
-              </p>
-            </div>
+          <h2 className="text-lg font-semibold text-text-primary mb-1">Daily Summary — {data.date}</h2>
+          <p className="text-sm text-text-muted mb-4">Business day interpreted in {data.timezone}</p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <Metric label="Total buy" value={data.summary?.totalBuy} tone="danger" />
+            <Metric label="Total sell" value={data.summary?.totalSell} tone="success" />
+            <Metric label="Expenses" value={data.summary?.totalExpenses} tone="danger" />
+            <Metric label="Net cash movement" value={data.summary?.netCashMovement} signed />
+            <Metric label="Realized FX margin" value={data.summary?.realizedFxMargin} signed />
+            <Metric label="Net realized profit" value={data.summary?.realizedProfit} signed emphasized />
           </div>
 
           {data.transactions?.length > 0 && (
             <div className="mt-6">
               <h3 className="text-sm font-medium text-text-secondary mb-3">Transactions ({data.transactions.length})</h3>
               <div className="space-y-2">
-                {data.transactions.map((tx) => (
-                  <div key={tx.id} className="flex justify-between items-center p-3 bg-surface rounded-lg">
-                    <span className="text-sm text-text-primary">{tx.customer?.name || tx.description || "—"}</span>
-                    <span className="text-sm font-medium text-text-primary">{formatAmount(tx.amount_local)}</span>
+                {data.transactions.map((transaction) => (
+                  <div key={transaction.id} className="flex justify-between items-center p-3 bg-surface rounded-lg">
+                    <span className="text-sm text-text-primary">{transaction.customer?.name || transaction.description || "—"}</span>
+                    <span className="text-sm font-medium text-text-primary">{formatAmount(transaction.amount_local)}</span>
                   </div>
                 ))}
               </div>
@@ -160,6 +130,25 @@ export default function ReportsPage() {
           Select a report type and date to view data
         </div>
       )}
+    </div>
+  );
+}
+
+function Metric({ label, value, tone, signed = false, emphasized = false }) {
+  const isPositive = Number(value || 0) >= 0;
+  const color = tone === "danger"
+    ? "text-danger"
+    : tone === "success" || (signed && isPositive)
+      ? "text-success"
+      : "text-danger";
+  const background = color === "text-success" ? "bg-badge-green-bg" : "bg-badge-red-bg";
+
+  return (
+    <div className={`p-4 rounded-lg ${background}`}>
+      <p className="text-sm text-text-secondary">{label}</p>
+      <p className={`${emphasized ? "text-2xl" : "text-xl"} font-bold ${color}`}>
+        {formatAmount(value)}
+      </p>
     </div>
   );
 }

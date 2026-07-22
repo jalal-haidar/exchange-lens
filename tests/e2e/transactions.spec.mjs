@@ -18,17 +18,57 @@ test.beforeAll(async () => {
   tokens = await loginAndGetTokens();
   userId = tokens.userId;
   api = createApi(tokens.accessToken);
-  await cleanupTestData(userId);
+  await cleanupTestData(userId, tokens.accessToken);
 
   const { data } = await api.post("/api/v1/customers", {
     name: CUSTOMER_NAME,
     phone: "+92-300-8888888",
   });
-  expect(data?.data?.customer?.id).toBeTruthy();
+  const customerId = data?.data?.customer?.id;
+  expect(customerId).toBeTruthy();
+
+  const ratesResponse = await api.get("/api/v1/rates");
+  const firstRate = ratesResponse.data?.data?.rates?.[0];
+  expect(firstRate?.currency_id).toBeTruthy();
+
+  const postedAt = new Date().toISOString();
+  const buy = await api.post("/api/v1/transactions", {
+    idempotency_key: crypto.randomUUID(),
+    type: "buy",
+    customer_id: customerId,
+    currency_id: firstRate.currency_id,
+    amount_foreign: "100.00",
+    rate: String(firstRate.buy_rate),
+    description: `E2E test buy ${RUN_ID}`,
+    posted_at: postedAt,
+  });
+  expect(buy.status).toBe(201);
+
+  const sell = await api.post("/api/v1/transactions", {
+    idempotency_key: crypto.randomUUID(),
+    type: "sell",
+    customer_id: customerId,
+    currency_id: firstRate.currency_id,
+    amount_foreign: "50.00",
+    rate: String(firstRate.sell_rate),
+    description: `E2E test sell ${RUN_ID}`,
+    posted_at: new Date(Date.now() + 1000).toISOString(),
+  });
+  expect(sell.status).toBe(201);
+
+  const credit = await api.post("/api/v1/transactions", {
+    idempotency_key: crypto.randomUUID(),
+    type: "credit_given",
+    customer_id: customerId,
+    amount_local: "5000.00",
+    description: `E2E test credit ${RUN_ID}`,
+    posted_at: new Date(Date.now() + 2000).toISOString(),
+  });
+  expect(credit.status).toBe(201);
 });
 
 test.afterAll(async () => {
-  await cleanupTestData(userId);
+  await cleanupTestData(userId, tokens.accessToken);
 });
 
 test.describe.serial("transaction CRUD", () => {
@@ -65,70 +105,6 @@ test.describe.serial("transaction CRUD", () => {
     await expect(page.getByRole("heading", { name: "New Transaction" })).toBeVisible();
     const sellBtn = page.getByText("Sell Currency").locator("..");
     await expect(sellBtn).toHaveAttribute("class", /border-info/);
-  });
-
-  test("create buy transaction via API", async () => {
-    const ratesResponse = await api.get("/api/v1/rates");
-    const rates = ratesResponse.data?.data?.rates || [];
-    expect(rates.length).toBeGreaterThan(0);
-
-    const firstRate = rates[0];
-    const customersResponse = await api.get(`/api/v1/customers?search=${CUSTOMER_NAME}`);
-    const customers = customersResponse.data?.data?.customers || [];
-    const customer = customers.find((c) => c.name === CUSTOMER_NAME);
-    expect(customer).toBeTruthy();
-
-    const response = await api.post("/api/v1/transactions", {
-      type: "buy",
-      customer_id: customer.id,
-      currency_id: firstRate.currency_id,
-      amount_foreign: 100,
-      amount_local: 100 * firstRate.buy_rate,
-      rate: firstRate.buy_rate,
-      description: `E2E test buy ${RUN_ID}`,
-    });
-
-    expect(response.status).toBe(201);
-    expect(response.data?.data?.transaction?.id).toBeTruthy();
-  });
-
-  test("create sell transaction via API", async () => {
-    const ratesResponse = await api.get("/api/v1/rates");
-    const rates = ratesResponse.data?.data?.rates || [];
-    const firstRate = rates[0];
-
-    const customersResponse = await api.get(`/api/v1/customers?search=${CUSTOMER_NAME}`);
-    const customer = customersResponse.data?.data?.customers?.find((c) => c.name === CUSTOMER_NAME);
-
-    const response = await api.post("/api/v1/transactions", {
-      type: "sell",
-      customer_id: customer.id,
-      currency_id: firstRate.currency_id,
-      amount_foreign: 50,
-      amount_local: 50 * firstRate.sell_rate,
-      rate: firstRate.sell_rate,
-      description: `E2E test sell ${RUN_ID}`,
-    });
-
-    expect(response.status).toBe(201);
-  });
-
-  test("create credit transaction via API", async () => {
-    const customersResponse = await api.get(`/api/v1/customers?search=${CUSTOMER_NAME}`);
-    const customer = customersResponse.data?.data?.customers?.find((c) => c.name === CUSTOMER_NAME);
-    const ratesResponse = await api.get("/api/v1/rates");
-    const rates = ratesResponse.data?.data?.rates || [];
-    const firstRate = rates[0];
-
-    const response = await api.post("/api/v1/transactions", {
-      type: "credit_given",
-      customer_id: customer.id,
-      currency_id: firstRate.currency_id,
-      amount_local: 5000,
-      description: `E2E test credit ${RUN_ID}`,
-    });
-
-    expect(response.status).toBe(201);
   });
 
   test("filter transactions by type", async ({ page }) => {

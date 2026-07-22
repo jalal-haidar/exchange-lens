@@ -18,7 +18,7 @@ test.beforeAll(async () => {
   tokens = await loginAndGetTokens();
   userId = tokens.userId;
   api = createApi(tokens.accessToken);
-  await cleanupTestData(userId);
+  await cleanupTestData(userId, tokens.accessToken);
 
   const { data } = await api.post("/api/v1/customers", {
     name: CUSTOMER_NAME,
@@ -28,7 +28,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await cleanupTestData(userId);
+  await cleanupTestData(userId, tokens.accessToken);
 });
 
 test.describe.serial("transaction form", () => {
@@ -45,7 +45,7 @@ test.describe.serial("transaction form", () => {
     await expect(page.getByText("Sell Currency")).toBeVisible();
     await expect(page.getByText("Give Credit")).toBeVisible();
     await expect(page.getByText("Receive Payment")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Expense" })).toBeVisible();
+    await expect(page.getByText("Receive Payment")).toBeVisible();
   });
 
   test("type selector switches form fields", async ({ page }) => {
@@ -58,8 +58,8 @@ test.describe.serial("transaction form", () => {
     await expect(page.locator("text=Customer *").locator("..").locator("select")).toBeVisible();
     await expect(page.locator("text=Currency *").locator("..").locator("select")).toBeHidden();
 
-    await page.getByRole("button", { name: "Expense" }).click();
-    await expect(page.locator("text=Customer *").locator("..").locator("select")).toBeHidden();
+    await page.getByText("Receive Payment").click();
+    await expect(page.locator("text=Customer *").locator("..").locator("select")).toBeVisible();
     await expect(page.locator("text=Currency *").locator("..").locator("select")).toBeHidden();
   });
 
@@ -77,7 +77,7 @@ test.describe.serial("transaction form", () => {
     await page.goto(`${EXCHANGE_URL}/transactions/new`);
     await page.getByRole("button", { name: "Record Transaction" }).click();
     await expect(page.getByText("Customer is required")).toBeVisible();
-    await expect(page.getByText("Amount is required")).toBeVisible();
+    await expect(page.getByText("Amount is required", { exact: true })).toBeVisible();
   });
 
   test("form validation — buy without currency", async ({ page }) => {

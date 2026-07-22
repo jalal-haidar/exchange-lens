@@ -28,13 +28,13 @@ test.describe.serial("reports", () => {
     await page.goto(`${EXCHANGE_URL}/reports`);
     await page.getByText("Profit & Loss").click();
 
-    await expect(page.getByText("Revenue")).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText("Total Sell")).toBeVisible();
-    await expect(page.getByText("Total Buy")).toBeVisible();
-    await expect(page.getByText("Gross Profit")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Expenses" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Net Profit" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Credits" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Cash Movement" })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Currency sold")).toBeVisible();
+    await expect(page.getByText("Currency bought")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Realized Performance" })).toBeVisible();
+    await expect(page.getByText("Realized FX margin")).toBeVisible();
+    await expect(page.getByText("Net realized profit")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Customer Credit Movement" })).toBeVisible();
   });
 
   test("Daily Summary renders cards", async ({ page }) => {
@@ -45,7 +45,8 @@ test.describe.serial("reports", () => {
     await expect(page.getByText("Total Buy")).toBeVisible();
     await expect(page.getByText("Total Sell")).toBeVisible();
     await expect(page.getByText("Expenses", { exact: true })).toBeVisible();
-    await expect(page.getByText("Profit", { exact: true })).toBeVisible();
+    await expect(page.getByText("Realized FX margin", { exact: true })).toBeVisible();
+    await expect(page.getByText("Net realized profit", { exact: true })).toBeVisible();
   });
 
   test("date picker changes report data", async ({ page }) => {

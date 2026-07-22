@@ -51,8 +51,8 @@ export default function CustomerDetailPage() {
             {customer.notes && <p className="text-text-secondary mt-1">📝 {customer.notes}</p>}
           </div>
           <div className="text-right">
-            <p className="text-xs text-text-muted">Balance</p>
-            <p className={`text-xl font-bold ${balance >= 0 ? "text-success" : "text-danger"}`}>
+            <p className="text-xs text-text-muted">Outstanding (credit only)</p>
+            <p className={`text-xl font-bold ${Number(balance) > 0 ? "text-danger" : "text-success"}`}>
               {formatAmount(balance)}
             </p>
             <p className="text-xs text-text-muted mt-1">

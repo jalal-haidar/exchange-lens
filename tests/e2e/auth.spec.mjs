@@ -15,14 +15,27 @@ test.beforeAll(async () => {
 test.describe.serial("auth flow", () => {
   test.setTimeout(180_000);
 
-  test("unauthenticated visit redirects to hub login", async ({ page }) => {
-    await page.goto(`${EXCHANGE_URL}/dashboard`);
-    await expect(page).toHaveURL(/localhost:3000\/login/, { timeout: 30_000 });
+  test("unauthenticated visit redirects to hub login", async ({ request }) => {
+    const response = await request.get(`${EXCHANGE_URL}/dashboard`, {
+      maxRedirects: 0,
+    });
+
+    expect(response.status()).toBe(307);
+    const location = new URL(response.headers().location);
+    const expectedHub = new URL(HUB_URL);
+    expect(location.origin).toBe(expectedHub.origin);
+    expect(location.pathname).toBe("/login");
+    expect(location.searchParams.get("redirect")).toBe(
+      `${EXCHANGE_URL}/dashboard`,
+    );
   });
 
   test("bridge login lands on dashboard", async ({ page }) => {
     await bridgeLogin(page, tokens, "/dashboard");
-    await expect(page).toHaveURL(/localhost:3005\/dashboard/, { timeout: 60_000 });
+    await expect(page).toHaveURL(
+      (url) => url.origin === new URL(EXCHANGE_URL).origin && url.pathname === "/dashboard",
+      { timeout: 60_000 },
+    );
     await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible({
       timeout: 15_000,
     });
@@ -30,7 +43,10 @@ test.describe.serial("auth flow", () => {
 
   test("root path redirects to /dashboard", async ({ page }) => {
     await bridgeLogin(page, tokens, "/");
-    await expect(page).toHaveURL(/localhost:3005\/dashboard/, { timeout: 60_000 });
+    await expect(page).toHaveURL(
+      (url) => url.origin === new URL(EXCHANGE_URL).origin && url.pathname === "/dashboard",
+      { timeout: 60_000 },
+    );
   });
 
   test("authenticated API returns 200", async ({ page }) => {

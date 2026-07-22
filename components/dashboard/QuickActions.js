@@ -3,10 +3,10 @@
 import Link from "next/link";
 
 const actions = [
-  { name: "Buy Currency", href: "/transactions/new?type=buy", icon: "📥", color: "bg-success" },
-  { name: "Sell Currency", href: "/transactions/new?type=sell", icon: "📤", color: "bg-info" },
-  { name: "Give Credit", href: "/transactions/new?type=credit_given", icon: "💳", color: "bg-danger" },
-  { name: "Record Expense", href: "/transactions/new?type=expense", icon: "💸", color: "bg-text-muted" },
+  { name: "Buy Currency", href: "/transactions/new?type=buy", icon: "\u{1F4E5}", color: "bg-success" },
+  { name: "Sell Currency", href: "/transactions/new?type=sell", icon: "\u{1F4E4}", color: "bg-info" },
+  { name: "Give Credit", href: "/transactions/new?type=credit_given", icon: "\u{1F4B3}", color: "bg-danger" },
+  { name: "Record Expense", href: "/expenses", icon: "\u{1F4B8}", color: "bg-text-muted" },
 ];
 
 export default function QuickActions() {

@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { useCustomers, useRates, useTransactionMutations } from "@/hooks";
 
 const TRANSACTION_TYPES = [
@@ -10,7 +10,6 @@ const TRANSACTION_TYPES = [
   { value: "sell", label: "Sell Currency", description: "Customer buys foreign currency from you" },
   { value: "credit_given", label: "Give Credit", description: "Give PKR credit/loan to customer" },
   { value: "credit_received", label: "Receive Payment", description: "Customer pays back credit" },
-  { value: "expense", label: "Expense", description: "Record a business expense" },
 ];
 
 const TYPE_ACTIVE_CLASSES = {
@@ -18,21 +17,30 @@ const TYPE_ACTIVE_CLASSES = {
   sell: "border-info bg-badge-blue-bg",
   credit_given: "border-danger bg-badge-red-bg",
   credit_received: "border-warning bg-badge-orange-bg",
-  expense: "border-text-muted bg-badge-gray-bg",
 };
+
+function getLocalDateTimeValue(date = new Date()) {
+  const localTime = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return localTime.toISOString().slice(0, 16);
+}
 
 function NewTransactionForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialType = searchParams.get("type") || "buy";
+  const requestedType = searchParams.get("type");
+  const initialType = TRANSACTION_TYPES.some(({ value }) => value === requestedType)
+    ? requestedType
+    : "buy";
   const initialCustomerId = searchParams.get("customer_id") || "";
+  const replacesTransactionId = searchParams.get("replaces_transaction_id") || null;
 
   const [transactionType, setTransactionType] = useState(initialType);
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const { customers } = useCustomers({ limit: 100 });
   const { rates } = useRates();
   const { createTransaction } = useTransactionMutations();
 
-  const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm({
+  const { register, handleSubmit, control, setValue, formState: { errors, isSubmitting } } = useForm({
     defaultValues: {
       customer_id: initialCustomerId,
       currency_id: "",
@@ -41,11 +49,13 @@ function NewTransactionForm() {
       rate: "",
       description: "",
       reference_number: "",
+      posted_at: getLocalDateTimeValue(),
     },
   });
 
-  const watchCurrencyId = watch("currency_id");
-  const watchAmountForeign = watch("amount_foreign");
+  const watchCurrencyId = useWatch({ control, name: "currency_id" });
+  const watchAmountForeign = useWatch({ control, name: "amount_foreign" });
+  const watchRate = useWatch({ control, name: "rate" });
 
   // Auto-fill rate when currency is selected
   useEffect(() => {
@@ -60,31 +70,34 @@ function NewTransactionForm() {
 
   // Auto-calculate local amount
   useEffect(() => {
-    const rate = watch("rate");
-    if (watchAmountForeign && rate) {
-      const local = Number(watchAmountForeign) * Number(rate);
+    if (watchAmountForeign && watchRate) {
+      const local = Number(watchAmountForeign) * Number(watchRate);
       setValue("amount_local", local.toFixed(2));
     }
-  }, [watchAmountForeign, watch, setValue]);
+  }, [watchAmountForeign, watchRate, setValue]);
 
   const showCurrency = ["buy", "sell"].includes(transactionType);
   const showRate = ["buy", "sell"].includes(transactionType);
-  const showCustomer = transactionType !== "expense";
+  const showCustomer = true;
 
   const onSubmit = async (data) => {
     try {
       const payload = {
+        idempotency_key: idempotencyKey,
         type: transactionType,
         customer_id: data.customer_id || null,
         currency_id: data.currency_id || null,
-        amount_foreign: Number(data.amount_foreign) || 0,
-        amount_local: Number(data.amount_local),
-        rate: data.rate ? Number(data.rate) : null,
+        amount_foreign: data.amount_foreign || null,
+        amount_local: data.amount_local || null,
+        rate: data.rate || null,
         description: data.description || null,
         reference_number: data.reference_number || null,
+        posted_at: new Date(data.posted_at).toISOString(),
+        replaces_transaction_id: replacesTransactionId,
       };
 
       await createTransaction.mutateAsync(payload);
+      setIdempotencyKey(crypto.randomUUID());
       router.push("/transactions");
     } catch {
       // Error handled by mutation
@@ -94,9 +107,14 @@ function NewTransactionForm() {
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6">
       <h1 className="text-2xl font-bold text-text-primary mb-6">New Transaction</h1>
+      {replacesTransactionId && (
+        <div className="mb-6 rounded-lg border border-warning/30 bg-badge-orange-bg p-4 text-sm text-text-secondary">
+          This transaction will replace a reversed entry. Re-enter the corrected values carefully.
+        </div>
+      )}
 
       {/* Type Selector */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-8">
         {TRANSACTION_TYPES.map((t) => (
           <button
             key={t.value}
@@ -160,10 +178,15 @@ function NewTransactionForm() {
             <input
               type="number"
               step="0.01"
-              {...register("amount_foreign")}
+              min="0.01"
+              {...register("amount_foreign", {
+                required: showCurrency ? "Foreign amount is required" : false,
+                min: { value: 0.01, message: "Foreign amount must be positive" },
+              })}
               className="w-full px-3 py-2 bg-surface border border-border-theme rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder="0.00"
             />
+            {errors.amount_foreign && <p className="text-xs text-danger mt-1">{errors.amount_foreign.message}</p>}
           </div>
         )}
 
@@ -174,10 +197,15 @@ function NewTransactionForm() {
             <input
               type="number"
               step="0.000001"
-              {...register("rate")}
+              min="0.000001"
+              {...register("rate", {
+                required: showRate ? "Rate is required" : false,
+                min: { value: 0.000001, message: "Rate must be positive" },
+              })}
               className="w-full px-3 py-2 bg-surface border border-border-theme rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder="Auto-filled from current rates"
             />
+            {errors.rate && <p className="text-xs text-danger mt-1">{errors.rate.message}</p>}
           </div>
         )}
 
@@ -187,11 +215,26 @@ function NewTransactionForm() {
           <input
             type="number"
             step="0.01"
+            min="0.01"
+            readOnly={showCurrency}
             {...register("amount_local", { required: "Amount is required", min: { value: 0.01, message: "Amount must be positive" } })}
             className="w-full px-3 py-2 bg-surface border border-border-theme rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-ring"
             placeholder="0.00"
           />
           {errors.amount_local && <p className="text-xs text-danger mt-1">{errors.amount_local.message}</p>}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-text-secondary mb-1">Transaction time *</label>
+          <input
+            type="datetime-local"
+            {...register("posted_at", {
+              required: "Transaction time is required",
+              validate: (value) => !Number.isNaN(new Date(value).getTime()) || "Transaction time is invalid",
+            })}
+            className="w-full px-3 py-2 bg-surface border border-border-theme rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          {errors.posted_at && <p className="text-xs text-danger mt-1">{errors.posted_at.message}</p>}
         </div>
 
         {/* Description */}

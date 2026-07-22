@@ -29,7 +29,7 @@ test.describe.serial("dashboard & navigation", () => {
     const stats = page.locator("#main-content");
     await expect(stats.getByText("Total Buy")).toBeVisible({ timeout: 15_000 });
     await expect(stats.getByText("Total Sell")).toBeVisible();
-    await expect(stats.getByText("Profit", { exact: true })).toBeVisible();
+    await expect(stats.getByText("Realized Profit", { exact: true })).toBeVisible();
     await expect(stats.getByText("Expenses", { exact: true })).toBeVisible();
     await expect(stats.getByText("Customers", { exact: true })).toBeVisible();
     await expect(stats.getByText("Pending Credits")).toBeVisible();
@@ -57,7 +57,7 @@ test.describe.serial("dashboard & navigation", () => {
 
   test("quick action — Record Expense navigates correctly", async ({ page }) => {
     await page.getByText("Record Expense").click();
-    await expect(page).toHaveURL(/\/transactions\/new\?type=expense/);
+    await expect(page).toHaveURL(/\/expenses/);
   });
 
   test("nav links navigate to correct pages", async ({ page }) => {

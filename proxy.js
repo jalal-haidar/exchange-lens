@@ -1,7 +1,7 @@
 import { createAuthGuard } from "@lifelens/auth/guard";
 
 export const proxy = createAuthGuard({
-  publicPaths: ["/auth/bridge", "/auth/callback", "/offline"],
+  publicPaths: ["/api/health", "/auth/bridge", "/auth/callback", "/offline"],
   isHub: false,
 });
 

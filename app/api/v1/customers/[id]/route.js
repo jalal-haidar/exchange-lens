@@ -79,16 +79,21 @@ export const DELETE = asyncHandler(async (request, { params }) => {
 
   const { user, supabase } = await requireAuthUser(request);
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .schema("exchange")
     .from("customers")
-    .delete()
+    .update({ is_active: false })
     .eq("id", id)
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .eq("is_active", true)
+    .select("id")
+    .maybeSingle();
 
   if (error) {
-    return errorResponse("Failed to delete customer", 500);
+    return errorResponse("Failed to deactivate customer", 500);
   }
 
-  return successResponse({ data: { message: "Customer deleted" } });
+  return data
+    ? successResponse({ data: { message: "Customer deactivated" } })
+    : errorResponse("Customer not found", 404);
 });

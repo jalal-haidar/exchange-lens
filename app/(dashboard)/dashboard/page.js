@@ -1,12 +1,25 @@
 "use client";
 
+import { useState } from "react";
 import { useDashboardStats } from "@/hooks";
 import StatsCards from "@/components/dashboard/StatsCards";
 import RecentTransactions from "@/components/dashboard/RecentTransactions";
 import QuickActions from "@/components/dashboard/QuickActions";
 
+function getLocalDate() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export default function DashboardPage() {
-  const { stats, recentTransactions, isLoading, error, refetch } = useDashboardStats();
+  const [dateContext] = useState(() => ({
+    date: getLocalDate(),
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+  }));
+  const { stats, recentTransactions, isLoading, error, refetch } = useDashboardStats(dateContext);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">

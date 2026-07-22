@@ -33,9 +33,9 @@ export const GET = asyncHandler(async (request) => {
     query = query.or(`name.ilike.%${search}%,phone.ilike.%${search}%,email.ilike.%${search}%`);
   }
 
-  if (isActive !== null && isActive !== undefined) {
-    query = query.eq("is_active", isActive === "true");
-  }
+  // Normal customer workflows should not surface deactivated records. Historical
+  // callers can still explicitly request them with ?is_active=false.
+  query = query.eq("is_active", isActive === null ? true : isActive === "true");
 
   const { data, error, count } = await query.range(offset, offset + limit - 1);
 

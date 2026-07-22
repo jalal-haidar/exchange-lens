@@ -2,7 +2,14 @@
 
 import { useEffect, useRef } from "react";
 
-export default function ConfirmDialog({ open, title, message, onConfirm, onCancel }) {
+export default function ConfirmDialog({
+  open,
+  title,
+  message,
+  confirmLabel = "Delete",
+  onConfirm,
+  onCancel,
+}) {
   const cancelRef = useRef(null);
 
   useEffect(() => {
@@ -47,7 +54,7 @@ export default function ConfirmDialog({ open, title, message, onConfirm, onCance
             onClick={onConfirm}
             className="flex-1 px-4 py-2 bg-danger text-white rounded-lg font-medium hover:opacity-90 transition-opacity"
           >
-            Delete
+            {confirmLabel}
           </button>
         </div>
       </div>

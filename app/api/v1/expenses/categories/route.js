@@ -17,7 +17,8 @@ export const GET = asyncHandler(async (request) => {
     .order("name");
 
   if (error) {
-    return successResponse({ data: { categories: [] } });
+    console.error("Expense category list error", { code: error.code, details: error.details });
+    return errorResponse("Failed to fetch expense categories", 500);
   }
 
   return successResponse({ data: { categories: data || [] } });

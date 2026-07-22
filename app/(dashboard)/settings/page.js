@@ -1,6 +1,7 @@
 "use client";
 
 import { useTheme } from "@/contexts/ThemeContext";
+import OpeningPositions from "@/components/settings/OpeningPositions";
 
 export default function SettingsPage() {
   const { mode, setMode } = useTheme();
@@ -33,6 +34,8 @@ export default function SettingsPage() {
           ))}
         </div>
       </div>
+
+      <OpeningPositions />
 
       {/* App Info */}
       <div className="bg-surface-raised rounded-xl border border-border-theme p-6">

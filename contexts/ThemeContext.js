@@ -1,19 +1,54 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useSyncExternalStore,
+} from "react";
 
 const ThemeContext = createContext(undefined);
+const THEME_KEY = "exchange-theme";
+const THEME_EVENT = "exchange-theme-change";
+const VALID_MODES = new Set(["light", "dark", "system"]);
+
+function subscribeToTheme(callback) {
+  window.addEventListener("storage", callback);
+  window.addEventListener(THEME_EVENT, callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener(THEME_EVENT, callback);
+  };
+}
+
+function getThemeSnapshot() {
+  const stored = localStorage.getItem(THEME_KEY);
+  return VALID_MODES.has(stored) ? stored : "system";
+}
+
+function getServerThemeSnapshot() {
+  return "system";
+}
 
 export function ThemeProvider({ children }) {
-  const [mode, setMode] = useState("system");
+  const mode = useSyncExternalStore(
+    subscribeToTheme,
+    getThemeSnapshot,
+    getServerThemeSnapshot,
+  );
 
-  useEffect(() => {
-    const stored = localStorage.getItem("exchange-theme");
-    if (stored) setMode(stored);
+  const setMode = useCallback((nextMode) => {
+    const resolvedMode = typeof nextMode === "function"
+      ? nextMode(getThemeSnapshot())
+      : nextMode;
+    if (!VALID_MODES.has(resolvedMode)) return;
+
+    localStorage.setItem(THEME_KEY, resolvedMode);
+    window.dispatchEvent(new Event(THEME_EVENT));
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("exchange-theme", mode);
     const root = document.documentElement;
     root.classList.remove("light", "dark");
 
@@ -31,8 +66,10 @@ export function ThemeProvider({ children }) {
   }, [mode]);
 
   const cycleTheme = useCallback(() => {
-    setMode((prev) => (prev === "light" ? "dark" : prev === "dark" ? "system" : "light"));
-  }, []);
+    setMode((previous) => (
+      previous === "light" ? "dark" : previous === "dark" ? "system" : "light"
+    ));
+  }, [setMode]);
 
   return (
     <ThemeContext.Provider value={{ mode, setMode, cycleTheme }}>

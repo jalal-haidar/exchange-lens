@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useTransactions } from "@/hooks";
 import TransactionList from "@/components/transactions/TransactionList";
 import Pagination from "@/components/shared/Pagination";
@@ -11,7 +12,6 @@ const TYPE_FILTERS = [
   { value: "sell", label: "Sell" },
   { value: "credit_given", label: "Credit Given" },
   { value: "credit_received", label: "Payment Received" },
-  { value: "expense", label: "Expense" },
 ];
 
 export default function TransactionsPage() {
@@ -33,12 +33,12 @@ export default function TransactionsPage() {
           <h1 className="text-2xl font-bold text-text-primary">Transactions</h1>
           <p className="text-text-secondary mt-1">{pagination?.total || 0} total transactions</p>
         </div>
-        <a
+        <Link
           href="/transactions/new"
           className="px-4 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary-hover transition-colors"
         >
           + New Transaction
-        </a>
+        </Link>
       </div>
 
       {/* Filters */}

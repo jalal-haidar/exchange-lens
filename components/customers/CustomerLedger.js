@@ -38,7 +38,7 @@ export default function CustomerLedger({ ledger, isLoading }) {
             <tbody>
               {ledger.map((t) => (
                 <tr key={t.id} className="border-b border-border-theme/50 hover:bg-hover-bg">
-                  <td className="py-3 px-2 text-text-secondary">{formatDateShort(t.created_at)}</td>
+                  <td className="py-3 px-2 text-text-secondary">{formatDateShort(t.posted_at || t.created_at)}</td>
                   <td className="py-3 px-2">
                     <span className={`px-2 py-1 rounded text-xs font-medium ${TYPE_BADGE_CLASSES[t.type]}`}>
                       {TRANSACTION_TYPE_LABELS[t.type]}
@@ -51,7 +51,7 @@ export default function CustomerLedger({ ledger, isLoading }) {
                     {formatAmount(t.amount_local)}
                   </td>
                   <td className={`py-3 px-2 text-right font-semibold ${
-                    t.running_balance >= 0 ? "text-success" : "text-danger"
+                    Number(t.running_balance) > 0 ? "text-danger" : "text-success"
                   }`}>
                     {formatAmount(t.running_balance)}
                   </td>

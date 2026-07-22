@@ -1,8 +1,9 @@
 import { requireAuthUser } from "@/lib/auth/helpers";
 import { asyncHandler } from "@/lib/utils/asyncHandler";
 import { successResponse, errorResponse } from "@/lib/utils/response";
-import { parsePagination, validateUUID } from "@/lib/utils/validation";
+import { parsePagination } from "@/lib/utils/validation";
 import { rateLimit, RateLimitPresets } from "@/lib/middleware";
+import { prepareTransactionInput } from "@/lib/domain/transactionInput";
 
 const readRateLimiter = rateLimit(RateLimitPresets.standard);
 const writeRateLimiter = rateLimit(RateLimitPresets.strict);
@@ -31,19 +32,23 @@ export const GET = asyncHandler(async (request) => {
     .select(`
       *,
       customer:customers(id, name, phone),
-      currency:currencies(id, code, name, symbol)
+      currency:currencies(id, code, name, symbol),
+      reversal:transaction_reversals(id, reason, created_at)
     `, { count: "exact" })
     .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
+    .neq("type", "expense")
+    .is("reversal", null)
+    .order("posted_at", { ascending: false });
 
   if (type) query = query.eq("type", type);
   if (customerId) query = query.eq("customer_id", customerId);
   if (currencyId) query = query.eq("currency_id", currencyId);
-  if (startDate) query = query.gte("created_at", startDate);
-  if (endDate) query = query.lte("created_at", endDate);
+  if (startDate) query = query.gte("posted_at", startDate);
+  if (endDate) query = query.lte("posted_at", endDate);
 
   if (search) {
-    query = query.or(`description.ilike.%${search}%,reference_number.ilike.%${search}%`);
+    const safeSearch = search.slice(0, 100).replace(/[,().%]/g, " ").trim();
+    if (safeSearch) query = query.or(`description.ilike.%${safeSearch}%,reference_number.ilike.%${safeSearch}%`);
   }
 
   const { data, error, count } = await query.range(offset, offset + limit - 1);
@@ -65,67 +70,56 @@ export const POST = asyncHandler(async (request) => {
   const { user, supabase } = await requireAuthUser(request);
   const body = await request.json();
 
-  // Validation
-  if (!body.type) return errorResponse("Transaction type is required", 400);
-  if (!body.currency_id) return errorResponse("Currency is required", 400);
-  if (!body.amount_local || Number(body.amount_local) <= 0) {
-    return errorResponse("Amount is required and must be positive", 400);
+  let transactionInput;
+  try {
+    transactionInput = prepareTransactionInput(body);
+  } catch (error) {
+    return errorResponse(error.message, 400);
   }
 
-  const validTypes = ["buy", "sell", "credit_given", "credit_received", "expense"];
-  if (!validTypes.includes(body.type)) {
-    return errorResponse("Invalid transaction type", 400);
-  }
-
-  // Validate currency exists
-  validateUUID(body.currency_id, "Currency ID");
-
-  const { data: currency, error: currencyError } = await supabase
+  const { data: postedTransaction, error: postError } = await supabase
     .schema("exchange")
-    .from("currencies")
-    .select("id")
-    .eq("id", body.currency_id)
+    .rpc("post_transaction", transactionInput)
     .single();
 
-  if (currencyError || !currency) {
-    return errorResponse("Currency not found", 404);
+  if (postError) {
+    if (postError.code === "P0002") {
+      return errorResponse(postError.message, 404);
+    }
+    if (["22003", "22023"].includes(postError.code)) {
+      return errorResponse(postError.message, 400);
+    }
+    if (["23505", "23514"].includes(postError.code)) {
+      return errorResponse(postError.message, 409);
+    }
+
+    console.error("Transaction posting failed", {
+      code: postError.code,
+      details: postError.details,
+    });
+    return errorResponse("Failed to create transaction", 500);
   }
 
-  // For buy/sell, customer_id is required
-  if (["buy", "sell", "credit_given", "credit_received"].includes(body.type) && !body.customer_id) {
-    return errorResponse("Customer is required for this transaction type", 400);
-  }
-
-  if (body.customer_id) {
-    validateUUID(body.customer_id, "Customer ID");
-  }
-
-  const transactionData = {
-    user_id: user.id,
-    customer_id: body.customer_id || null,
-    currency_id: body.currency_id,
-    type: body.type,
-    amount_foreign: Number(body.amount_foreign) || 0,
-    amount_local: Number(body.amount_local),
-    rate: body.rate ? Number(body.rate) : null,
-    description: body.description || null,
-    reference_number: body.reference_number || null,
-  };
-
-  const { data, error } = await supabase
+  const { data: hydratedTransaction, error: hydrateError } = await supabase
     .schema("exchange")
     .from("transactions")
-    .insert(transactionData)
     .select(`
       *,
       customer:customers(id, name, phone),
       currency:currencies(id, code, name, symbol)
     `)
+    .eq("id", postedTransaction.id)
+    .eq("user_id", user.id)
     .single();
 
-  if (error) {
-    return errorResponse("Failed to create transaction", 500);
+  if (hydrateError) {
+    console.error("Transaction hydration failed", {
+      transactionId: postedTransaction.id,
+      code: hydrateError.code,
+    });
   }
 
-  return successResponse({ data: { transaction: data } }, 201);
+  return successResponse({
+    data: { transaction: hydratedTransaction || postedTransaction },
+  }, 201);
 });

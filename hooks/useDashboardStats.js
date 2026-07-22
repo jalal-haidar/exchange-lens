@@ -3,11 +3,9 @@ import { queryKeys } from "@/lib/shared/queryKeys";
 import { API_ENDPOINTS, buildQueryString } from "@/lib/shared/api";
 import { fetchAPI } from "@/lib/utils/fetchAPI";
 
-export function useDashboardStats(date, options = {}) {
-  const params = date ? { date } : {};
-
+export function useDashboardStats(params = {}, options = {}) {
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: queryKeys.dashboard.stats,
+    queryKey: [...queryKeys.dashboard.stats, params],
     queryFn: async ({ signal }) => {
       const url = API_ENDPOINTS.DASHBOARD.STATS + buildQueryString(params);
       const result = await fetchAPI(url, { signal });

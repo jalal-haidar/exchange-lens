@@ -18,7 +18,8 @@ export const GET = asyncHandler(async (request, { params }) => {
     .select(`
       *,
       customer:customers(id, name, phone, email),
-      currency:currencies(id, code, name, symbol)
+      currency:currencies(id, code, name, symbol),
+      reversal:transaction_reversals(id, reason, created_at)
     `)
     .eq("id", id)
     .eq("user_id", user.id)

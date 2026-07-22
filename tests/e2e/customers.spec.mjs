@@ -19,11 +19,11 @@ test.beforeAll(async () => {
   tokens = await loginAndGetTokens();
   userId = tokens.userId;
   api = createApi(tokens.accessToken);
-  await cleanupTestData(userId);
+  await cleanupTestData(userId, tokens.accessToken);
 });
 
 test.afterAll(async () => {
-  await cleanupTestData(userId);
+  await cleanupTestData(userId, tokens.accessToken);
 });
 
 test.describe.serial("customer CRUD", () => {
@@ -42,7 +42,7 @@ test.describe.serial("customer CRUD", () => {
     await page.goto(`${EXCHANGE_URL}/customers`);
     const addBtn = page.getByText("+ Add Customer");
     await addBtn.waitFor({ state: "visible", timeout: 10_000 });
-    await addBtn.evaluate((el) => el.click());
+    await addBtn.evaluate((element) => element.click());
 
     const dialog = page.getByRole("dialog", { name: "Add Customer" });
     await expect(dialog).toBeVisible();
@@ -65,9 +65,7 @@ test.describe.serial("customer CRUD", () => {
     await page.goto(`${EXCHANGE_URL}/customers`);
     await page.getByPlaceholder(/search/i).fill(CUSTOMER_NAME);
     await page.getByText(CUSTOMER_NAME).first().click();
-    await expect(page.getByRole("heading", { name: CUSTOMER_NAME })).toBeVisible({
-      timeout: 15_000,
-    });
+    await expect(page.getByRole("heading", { name: CUSTOMER_NAME })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText("Transaction Ledger")).toBeVisible();
   });
 
@@ -75,9 +73,7 @@ test.describe.serial("customer CRUD", () => {
     await page.goto(`${EXCHANGE_URL}/customers`);
     await page.getByPlaceholder(/search/i).fill(CUSTOMER_NAME);
     await page.getByText(CUSTOMER_NAME).first().click();
-    await expect(page.getByRole("heading", { name: CUSTOMER_NAME })).toBeVisible({
-      timeout: 15_000,
-    });
+    await expect(page.getByRole("heading", { name: CUSTOMER_NAME })).toBeVisible({ timeout: 15_000 });
 
     await expect(page.getByText("Buy from Customer")).toBeVisible();
     await expect(page.getByText("Sell to Customer")).toBeVisible();
@@ -87,9 +83,7 @@ test.describe.serial("customer CRUD", () => {
   test("edit customer via modal", async ({ page }) => {
     await page.goto(`${EXCHANGE_URL}/customers`);
     await page.getByPlaceholder(/search/i).fill(CUSTOMER_NAME);
-
-    const customerCard = page.locator(".bg-surface-raised").filter({ hasText: CUSTOMER_NAME });
-    await customerCard.locator("button").filter({ hasText: /✏️/ }).click();
+    await page.getByRole("button", { name: `Edit ${CUSTOMER_NAME}` }).click();
 
     const dialog = page.getByRole("dialog", { name: "Edit Customer" });
     await expect(dialog).toBeVisible();
@@ -98,7 +92,7 @@ test.describe.serial("customer CRUD", () => {
     await dialog.getByPlaceholder("Customer name").fill(UPDATED_NAME);
 
     const customersRes = await api.get(`/api/v1/customers?search=${CUSTOMER_NAME}`);
-    const customer = customersRes.data?.data?.customers?.find((c) => c.name === CUSTOMER_NAME);
+    const customer = customersRes.data?.data?.customers?.find((entry) => entry.name === CUSTOMER_NAME);
     await api.put(`/api/v1/customers/${customer.id}`, { name: UPDATED_NAME });
 
     await dialog.getByRole("button", { name: "Cancel" }).click();
@@ -109,18 +103,16 @@ test.describe.serial("customer CRUD", () => {
     await expect(page.getByText(UPDATED_NAME)).toBeVisible({ timeout: 15_000 });
   });
 
-  test("delete customer with confirmation dialog", async ({ page }) => {
+  test("deactivate customer with confirmation dialog", async ({ page }) => {
     await page.goto(`${EXCHANGE_URL}/customers`);
     await page.getByPlaceholder(/search/i).fill(UPDATED_NAME);
-
-    const customerCard = page.locator(".bg-surface-raised").filter({ hasText: UPDATED_NAME });
-    await customerCard.locator("button").filter({ hasText: /🗑️/ }).click();
+    await page.getByRole("button", { name: `Deactivate ${UPDATED_NAME}` }).click();
 
     const confirmDialog = page.getByRole("alertdialog");
     await expect(confirmDialog).toBeVisible();
-    await expect(confirmDialog.getByText(UPDATED_NAME)).toBeVisible();
+    await expect(confirmDialog.getByText(UPDATED_NAME, { exact: false })).toBeVisible();
 
-    await confirmDialog.getByRole("button", { name: "Delete" }).click();
+    await confirmDialog.getByRole("button", { name: "Deactivate" }).click();
     await expect(confirmDialog).toBeHidden({ timeout: 15_000 });
 
     await page.getByPlaceholder(/search/i).fill(UPDATED_NAME);
@@ -133,11 +125,11 @@ test.describe.serial("customer CRUD", () => {
     await expect(page.getByText("No customers yet")).toBeVisible({ timeout: 15_000 });
   });
 
-  test("customer form validation — empty name", async ({ page }) => {
+  test("customer form validation - empty name", async ({ page }) => {
     await page.goto(`${EXCHANGE_URL}/customers`);
     const addBtn = page.getByText("+ Add Customer");
     await addBtn.waitFor({ state: "visible", timeout: 10_000 });
-    await addBtn.evaluate((el) => el.click());
+    await addBtn.evaluate((element) => element.click());
 
     const dialog = page.getByRole("dialog", { name: "Add Customer" });
     await dialog.getByRole("button", { name: "Add Customer" }).click();
@@ -148,7 +140,7 @@ test.describe.serial("customer CRUD", () => {
     await page.goto(`${EXCHANGE_URL}/customers`);
     const addBtn = page.getByText("+ Add Customer");
     await addBtn.waitFor({ state: "visible", timeout: 10_000 });
-    await addBtn.evaluate((el) => el.click());
+    await addBtn.evaluate((element) => element.click());
 
     const dialog = page.getByRole("dialog", { name: "Add Customer" });
     await expect(dialog).toBeVisible();

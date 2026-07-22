@@ -1,4 +1,5 @@
 import { requireAuthUser } from "@/lib/auth/helpers";
+import { prepareExpenseInput } from "@/lib/domain/expenseInput";
 import { asyncHandler } from "@/lib/utils/asyncHandler";
 import { successResponse, errorResponse } from "@/lib/utils/response";
 import { rateLimit, RateLimitPresets } from "@/lib/middleware";
@@ -14,24 +15,37 @@ export const GET = asyncHandler(async (request) => {
   if (rateLimitResult) return rateLimitResult;
 
   const { user, supabase } = await requireAuthUser(request);
+  const [expensesResult, reversalsResult] = await Promise.all([
+    supabase
+      .schema("exchange")
+      .from("expenses")
+      .select("*, category:expense_categories(id, name)")
+      .eq("user_id", user.id)
+      .order("date", { ascending: false })
+      .limit(100),
+    supabase
+      .schema("exchange")
+      .from("expense_reversals")
+      .select("expense_id")
+      .eq("user_id", user.id),
+  ]);
 
-  const { data, error } = await supabase
-    .schema("exchange")
-    .from("expenses")
-    .select(`
-      *,
-      category:expense_categories(id, name)
-    `)
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(100);
-
-  if (error) {
-    // If expenses table doesn't exist yet, return empty
-    return successResponse({ data: { expenses: [] } });
+  if (expensesResult.error || reversalsResult.error) {
+    console.error("Expense list error", {
+      expenses: expensesResult.error,
+      reversals: reversalsResult.error,
+    });
+    return errorResponse("Failed to fetch expenses", 500);
   }
 
-  return successResponse({ data: { expenses: data || [] } });
+  const reversedExpenseIds = new Set(
+    (reversalsResult.data || []).map((reversal) => reversal.expense_id),
+  );
+  const expenses = (expensesResult.data || []).filter(
+    (expense) => !reversedExpenseIds.has(expense.id),
+  );
+
+  return successResponse({ data: { expenses } });
 });
 
 export const POST = asyncHandler(async (request) => {
@@ -41,28 +55,52 @@ export const POST = asyncHandler(async (request) => {
   const { user, supabase } = await requireAuthUser(request);
   const body = await request.json();
 
-  if (!body.amount || Number(body.amount) <= 0) {
-    return errorResponse("Amount is required and must be positive", 400);
+  let expenseInput;
+  try {
+    expenseInput = prepareExpenseInput(body);
+  } catch (error) {
+    return errorResponse(error.message, 400);
   }
 
-  const expenseData = {
-    user_id: user.id,
-    category_id: body.category_id || null,
-    amount: Number(body.amount),
-    description: body.description || null,
-    date: body.date || new Date().toISOString(),
-  };
-
-  const { data, error } = await supabase
+  const { data: postedExpense, error: postError } = await supabase
     .schema("exchange")
-    .from("expenses")
-    .insert(expenseData)
-    .select()
+    .rpc("post_expense", expenseInput)
     .single();
 
-  if (error) {
+  if (postError) {
+    if (postError.code === "P0002") {
+      return errorResponse(postError.message, 404);
+    }
+    if (["22003", "22023"].includes(postError.code)) {
+      return errorResponse(postError.message, 400);
+    }
+    if (["23505", "23514"].includes(postError.code)) {
+      return errorResponse(postError.message, 409);
+    }
+
+    console.error("Expense posting failed", {
+      code: postError.code,
+      details: postError.details,
+    });
     return errorResponse("Failed to create expense", 500);
   }
 
-  return successResponse({ data: { expense: data } }, 201);
+  const { data: hydratedExpense, error: hydrateError } = await supabase
+    .schema("exchange")
+    .from("expenses")
+    .select("*, category:expense_categories(id, name)")
+    .eq("id", postedExpense.id)
+    .eq("user_id", user.id)
+    .single();
+
+  if (hydrateError) {
+    console.error("Expense hydration failed", {
+      expenseId: postedExpense.id,
+      code: hydrateError.code,
+    });
+  }
+
+  return successResponse({
+    data: { expense: hydratedExpense || postedExpense },
+  }, 201);
 });
