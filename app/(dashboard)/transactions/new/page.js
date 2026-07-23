@@ -3,22 +3,23 @@
 import { Suspense, useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useForm, useWatch } from "react-hook-form";
-import { useCustomers, useRates, useTransactionMutations } from "@/hooks";
+import {
+  useCustomers,
+  useFinancialAccounts,
+  useRates,
+  useTransactionMutations,
+} from "@/hooks";
 import PermissionGate from "@/components/access/PermissionGate";
 import { Permissions } from "@/lib/access/permissions";
 
 const TRANSACTION_TYPES = [
   { value: "buy", label: "Buy Currency", description: "Customer sells foreign currency to you" },
   { value: "sell", label: "Sell Currency", description: "Customer buys foreign currency from you" },
-  { value: "credit_given", label: "Give Credit", description: "Give PKR credit/loan to customer" },
-  { value: "credit_received", label: "Receive Payment", description: "Customer pays back credit" },
 ];
 
 const TYPE_ACTIVE_CLASSES = {
   buy: "border-success bg-badge-green-bg",
   sell: "border-info bg-badge-blue-bg",
-  credit_given: "border-danger bg-badge-red-bg",
-  credit_received: "border-warning bg-badge-orange-bg",
 };
 
 function getLocalDateTimeValue(date = new Date()) {
@@ -40,14 +41,17 @@ function NewTransactionForm() {
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const { customers } = useCustomers({ limit: 100 });
   const { rates } = useRates();
+  const { accounts, isLoading: accountsLoading, error: accountsError } = useFinancialAccounts();
   const { createTransaction } = useTransactionMutations();
 
   const { register, handleSubmit, control, setValue, formState: { errors, isSubmitting } } = useForm({
     defaultValues: {
       customer_id: initialCustomerId,
-      currency_id: "",
+      foreign_account_id: "",
+      local_account_id: "",
       amount_foreign: "",
       amount_local: "",
+      settled_amount_local: "",
       rate: "",
       description: "",
       reference_number: "",
@@ -55,26 +59,28 @@ function NewTransactionForm() {
     },
   });
 
-  const watchCurrencyId = useWatch({ control, name: "currency_id" });
+  const watchForeignAccountId = useWatch({ control, name: "foreign_account_id" });
   const watchAmountForeign = useWatch({ control, name: "amount_foreign" });
   const watchRate = useWatch({ control, name: "rate" });
 
   // Auto-fill rate when currency is selected
   useEffect(() => {
-    if (watchCurrencyId) {
-      const rate = rates.find((r) => r.currency_id === watchCurrencyId);
+    if (watchForeignAccountId) {
+      const account = accounts.find((candidate) => candidate.id === watchForeignAccountId);
+      const rate = rates.find((candidate) => candidate.currency_id === account?.currency_id);
       if (rate) {
         const autoRate = transactionType === "buy" ? rate.buy_rate : rate.sell_rate;
         setValue("rate", autoRate);
       }
     }
-  }, [watchCurrencyId, rates, transactionType, setValue]);
+  }, [watchForeignAccountId, accounts, rates, transactionType, setValue]);
 
   // Auto-calculate local amount
   useEffect(() => {
     if (watchAmountForeign && watchRate) {
       const local = Number(watchAmountForeign) * Number(watchRate);
       setValue("amount_local", local.toFixed(2));
+      setValue("settled_amount_local", local.toFixed(2));
     }
   }, [watchAmountForeign, watchRate, setValue]);
 
@@ -88,10 +94,11 @@ function NewTransactionForm() {
         idempotency_key: idempotencyKey,
         type: transactionType,
         customer_id: data.customer_id || null,
-        currency_id: data.currency_id || null,
+        foreign_account_id: data.foreign_account_id,
+        local_account_id: data.local_account_id || null,
         amount_foreign: data.amount_foreign || null,
-        amount_local: data.amount_local || null,
         rate: data.rate || null,
+        settled_amount_local: data.settled_amount_local || "0",
         description: data.description || null,
         reference_number: data.reference_number || null,
         posted_at: new Date(data.posted_at).toISOString(),
@@ -116,7 +123,7 @@ function NewTransactionForm() {
       )}
 
       {/* Type Selector */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-8">
+      <div className="grid grid-cols-2 gap-2 mb-8">
         {TRANSACTION_TYPES.map((t) => (
           <button
             key={t.value}
@@ -154,22 +161,24 @@ function NewTransactionForm() {
           </div>
         )}
 
-        {/* Currency */}
+        {/* Foreign custody account */}
         {showCurrency && (
           <div>
-            <label className="block text-sm font-medium text-text-secondary mb-1">Currency *</label>
+            <label className="block text-sm font-medium text-text-secondary mb-1">Foreign cash/bank account *</label>
             <select
-              {...register("currency_id", { required: showCurrency ? "Currency is required" : false })}
+              {...register("foreign_account_id", { required: "Foreign account is required" })}
+              disabled={accountsLoading || Boolean(accountsError)}
               className="w-full px-3 py-2 bg-surface border border-border-theme rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-ring"
             >
-              <option value="">Select currency</option>
-              {rates.map((r) => (
-                <option key={r.currency_id} value={r.currency_id}>
-                  {r.currency?.name} ({r.currency?.code})
+              <option value="">{accountsLoading ? "Loading accounts..." : "Select account"}</option>
+              {accounts.filter((account) => account.currency_code !== "PKR").map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name} ({account.currency_code}) — balance {account.balance}
                 </option>
               ))}
             </select>
-            {errors.currency_id && <p className="text-xs text-danger mt-1">{errors.currency_id.message}</p>}
+            {errors.foreign_account_id && <p className="text-xs text-danger mt-1">{errors.foreign_account_id.message}</p>}
+            {accountsError && <p className="text-xs text-danger mt-1">{accountsError}</p>}
           </div>
         )}
 
@@ -179,11 +188,11 @@ function NewTransactionForm() {
             <label className="block text-sm font-medium text-text-secondary mb-1">Foreign Amount</label>
             <input
               type="number"
-              step="0.01"
-              min="0.01"
+              step="0.00000001"
+              min="0.00000001"
               {...register("amount_foreign", {
                 required: showCurrency ? "Foreign amount is required" : false,
-                min: { value: 0.01, message: "Foreign amount must be positive" },
+                min: { value: 0.00000001, message: "Foreign amount must be positive" },
               })}
               className="w-full px-3 py-2 bg-surface border border-border-theme rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder="0.00"
@@ -224,6 +233,54 @@ function NewTransactionForm() {
             placeholder="0.00"
           />
           {errors.amount_local && <p className="text-xs text-danger mt-1">{errors.amount_local.message}</p>}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-text-secondary mb-1">
+            PKR cash/bank account
+          </label>
+          <select
+            {...register("local_account_id", {
+              validate: (value, values) => (
+                Number(values.settled_amount_local || 0) === 0
+                || Boolean(value)
+                || "Select a PKR account when money is settled now"
+              ),
+            })}
+            className="w-full px-3 py-2 bg-surface border border-border-theme rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            <option value="">No immediate cash settlement</option>
+            {accounts.filter((account) => account.currency_code === "PKR").map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.name} — balance {account.balance}
+              </option>
+            ))}
+          </select>
+          {errors.local_account_id && <p className="text-xs text-danger mt-1">{errors.local_account_id.message}</p>}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-text-secondary mb-1">
+            Settled now (PKR)
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            {...register("settled_amount_local", {
+              required: "Settled amount is required",
+              min: { value: 0, message: "Settled amount cannot be negative" },
+              validate: (value, values) => (
+                Number(value) <= Number(values.amount_local)
+                || "Settled amount cannot exceed trade total"
+              ),
+            })}
+            className="w-full px-3 py-2 bg-surface border border-border-theme rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          <p className="mt-1 text-xs text-text-muted">
+            Enter 0 for credit or a partial amount; the remainder stays on the customer balance.
+          </p>
+          {errors.settled_amount_local && <p className="text-xs text-danger mt-1">{errors.settled_amount_local.message}</p>}
         </div>
 
         <div>

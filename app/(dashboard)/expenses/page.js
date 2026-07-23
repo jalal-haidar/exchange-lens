@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useExpenses, useExpenseCategories } from "@/hooks";
+import { useExpenses, useExpenseCategories, useFinancialAccounts } from "@/hooks";
 import { fetchAPI } from "@/lib/utils/fetchAPI";
 import { toast } from "sonner";
 import { formatAmount } from "@/lib/utils/format";
@@ -28,6 +28,7 @@ function createEmptyForm() {
     amount: "",
     description: "",
     category_id: "",
+    account_id: "",
     date: getLocalDateTime(),
   };
 }
@@ -37,6 +38,7 @@ function ExpensesPageContent() {
   const canPost = can(Permissions.EXPENSES_POST);
   const canReverse = can(Permissions.EXPENSES_REVERSE);
   const { expenses, isLoading, error, refetch } = useExpenses();
+  const { accounts, isLoading: accountsLoading, error: accountsError } = useFinancialAccounts();
   const {
     categories,
     isLoading: categoriesLoading,
@@ -59,6 +61,9 @@ function ExpensesPageContent() {
     }
     if (!formData.date || Number.isNaN(Date.parse(formData.date))) {
       errors.date = "Date and time are required";
+    }
+    if (!formData.account_id) {
+      errors.account_id = "Payment account is required";
     }
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -84,6 +89,7 @@ function ExpensesPageContent() {
           amount: formData.amount,
           description: formData.description,
           category_id: formData.category_id || null,
+          account_id: formData.account_id,
           date: new Date(formData.date).toISOString(),
           idempotency_key: idempotencyKey.current,
         }),
@@ -137,7 +143,26 @@ function ExpensesPageContent() {
       {canPost && showForm && (
         <form onSubmit={handleSubmit} className="bg-surface-raised rounded-xl border border-border-theme p-6 mb-6">
           <h2 className="text-lg font-semibold text-text-primary mb-4">New Expense</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-1">Paid from *</label>
+              <select
+                value={formData.account_id}
+                onChange={(event) => setFormData({ ...formData, account_id: event.target.value })}
+                disabled={accountsLoading || Boolean(accountsError)}
+                className="w-full px-3 py-2 bg-surface border border-border-theme rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+              >
+                <option value="">{accountsLoading ? "Loading accounts..." : "Select PKR account"}</option>
+                {accounts.filter((account) => account.currency_code === "PKR").map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.name} — {account.balance}
+                  </option>
+                ))}
+              </select>
+              {(formErrors.account_id || accountsError) && (
+                <p className="text-xs text-danger mt-1">{formErrors.account_id || accountsError}</p>
+              )}
+            </div>
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-1">Amount (PKR) *</label>
               <input

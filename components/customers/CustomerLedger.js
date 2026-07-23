@@ -1,7 +1,19 @@
 "use client";
 
-import { TRANSACTION_TYPE_LABELS, TYPE_BADGE_CLASSES } from "@/lib/shared/constants";
+import { TYPE_BADGE_CLASSES } from "@/lib/shared/constants";
 import { formatAmount, formatDateShort } from "@/lib/utils/format";
+
+const ACTIVITY_LABELS = {
+  buy: "Buy",
+  sell: "Sell",
+  receipt: "Receipt",
+  payout: "Payout",
+  opening: "Opening balance",
+  reversal: "Reversal",
+  adjustment: "Adjustment",
+};
+
+const FALLBACK_BADGE = "bg-badge-blue-bg text-info";
 
 export default function CustomerLedger({ ledger, isLoading }) {
   if (isLoading) {
@@ -19,10 +31,10 @@ export default function CustomerLedger({ ledger, isLoading }) {
 
   return (
     <div className="bg-surface-raised rounded-xl border border-border-theme p-6">
-      <h2 className="text-lg font-semibold text-text-primary mb-4">Transaction Ledger</h2>
+      <h2 className="text-lg font-semibold text-text-primary mb-4">Customer Ledger</h2>
 
       {ledger.length === 0 ? (
-        <p className="text-center text-text-muted py-8">No transactions yet</p>
+        <p className="text-center text-text-muted py-8">No customer activity yet</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -31,29 +43,33 @@ export default function CustomerLedger({ ledger, isLoading }) {
                 <th className="text-left py-3 px-2 text-text-muted font-medium">Date</th>
                 <th className="text-left py-3 px-2 text-text-muted font-medium">Type</th>
                 <th className="text-left py-3 px-2 text-text-muted font-medium">Description</th>
-                <th className="text-right py-3 px-2 text-text-muted font-medium">Amount</th>
+                <th className="text-right py-3 px-2 text-text-muted font-medium">Activity</th>
                 <th className="text-right py-3 px-2 text-text-muted font-medium">Balance</th>
               </tr>
             </thead>
             <tbody>
-              {ledger.map((t) => (
-                <tr key={t.id} className="border-b border-border-theme/50 hover:bg-hover-bg">
-                  <td className="py-3 px-2 text-text-secondary">{formatDateShort(t.posted_at || t.created_at)}</td>
+              {ledger.map((entry) => (
+                <tr key={entry.id} className="border-b border-border-theme/50 hover:bg-hover-bg">
+                  <td className="py-3 px-2 text-text-secondary">
+                    {formatDateShort(entry.posted_at || entry.created_at)}
+                  </td>
                   <td className="py-3 px-2">
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${TYPE_BADGE_CLASSES[t.type]}`}>
-                      {TRANSACTION_TYPE_LABELS[t.type]}
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${
+                      TYPE_BADGE_CLASSES[entry.type] || FALLBACK_BADGE
+                    }`}>
+                      {ACTIVITY_LABELS[entry.type] || entry.type || "Activity"}
                     </span>
                   </td>
                   <td className="py-3 px-2 text-text-primary max-w-[200px] truncate">
-                    {t.description || t.reference_number || "—"}
+                    {entry.description || entry.reference_number || "—"}
                   </td>
                   <td className="py-3 px-2 text-right font-medium text-text-primary">
-                    {formatAmount(t.amount_local)}
+                    {formatAmount(entry.amount_local)}
                   </td>
                   <td className={`py-3 px-2 text-right font-semibold ${
-                    Number(t.running_balance) > 0 ? "text-danger" : "text-success"
+                    Number(entry.running_balance) > 0 ? "text-danger" : "text-success"
                   }`}>
-                    {formatAmount(t.running_balance)}
+                    {formatAmount(entry.running_balance)}
                   </td>
                 </tr>
               ))}

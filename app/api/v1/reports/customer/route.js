@@ -1,23 +1,19 @@
 import { Permissions } from "@/lib/access/permissions";
 import { requireExchangePermission } from "@/lib/access/server";
-import { calculateCustomerOutstanding } from "@/lib/domain/accounting";
 import { getUtcDateRange } from "@/lib/domain/dateRange";
+import { mapLedgerError } from "@/lib/domain/ledgerInput";
 import { asyncHandler } from "@/lib/utils/asyncHandler";
 import { successResponse, errorResponse } from "@/lib/utils/response";
 import { validateUUID } from "@/lib/utils/validation";
-import { TRANSACTION_TYPES } from "@/lib/shared/constants";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const CREDIT_TYPES = [TRANSACTION_TYPES.CREDIT_GIVEN, TRANSACTION_TYPES.CREDIT_RECEIVED];
-
-function isActive(entry) {
-  return !entry.reversal || (Array.isArray(entry.reversal) && entry.reversal.length === 0);
-}
-
 export const GET = asyncHandler(async (request) => {
-  const { supabase, organizationId } = await requireExchangePermission(request, Permissions.FINANCIAL_REPORTS_READ);
+  const { supabase, organizationId } = await requireExchangePermission(
+    request,
+    Permissions.FINANCIAL_REPORTS_READ,
+  );
   const { searchParams } = new URL(request.url);
 
   const customerId = searchParams.get("customer_id");
@@ -31,69 +27,59 @@ export const GET = asyncHandler(async (request) => {
   let range = null;
   if (startDate || endDate) {
     try {
-      range = getUtcDateRange(startDate || endDate, endDate || startDate, timezone);
+      range = getUtcDateRange(
+        startDate || endDate,
+        endDate || startDate,
+        timezone,
+      );
     } catch (rangeError) {
       return errorResponse(rangeError.message, 400);
     }
   }
 
-  let query = supabase
-    .schema("exchange")
-    .from("transactions")
-    .select(`
-      *,
-      customer:customers(id, name, phone),
-      currency:currencies(id, code, symbol),
-      reversal:transaction_reversals(id)
-    `)
-    .eq("organization_id", organizationId)
-    .eq("customer_id", customerId)
-    .neq("type", TRANSACTION_TYPES.EXPENSE)
-    .order("posted_at", { ascending: true })
-    .order("created_at", { ascending: true });
+  const [statementResult, customerResult] = await Promise.all([
+    supabase
+      .schema("exchange")
+      .rpc("get_customer_financial_summary", {
+        p_customer_id: customerId,
+        p_limit: 500,
+        p_offset: 0,
+        p_start: range?.start ?? null,
+        p_end: range?.endExclusive ?? null,
+        p_type: null,
+      }),
+    supabase
+      .schema("exchange")
+      .from("customers")
+      .select("id, name, phone, email")
+      .eq("id", customerId)
+      .eq("organization_id", organizationId)
+      .maybeSingle(),
+  ]);
 
-  if (range) {
-    query = query.gte("posted_at", range.start).lt("posted_at", range.endExclusive);
+  if (statementResult.error) {
+    const mapped = mapLedgerError(statementResult.error);
+    return errorResponse(mapped.message, mapped.status);
   }
-
-  const { data: transactions, error } = await query;
-
-  if (error) {
-    return errorResponse("Failed to fetch customer statement", 500);
+  if (customerResult.error) {
+    return errorResponse("Failed to fetch customer", 500);
   }
-
-  const activeTransactions = (transactions || []).filter(isActive);
-  const credits = [];
-  const statement = activeTransactions.map((transaction) => {
-    if (CREDIT_TYPES.includes(transaction.type)) {
-      credits.push(transaction);
-    }
-    return {
-      ...transaction,
-      running_balance: calculateCustomerOutstanding(credits),
-    };
-  });
-
-  // Get customer info
-  const { data: customer } = await supabase
-    .schema("exchange")
-    .from("customers")
-    .select("id, name, phone, email")
-    .eq("id", customerId)
-    .eq("organization_id", organizationId)
-    .maybeSingle();
-
-  if (!customer) {
+  if (!customerResult.data) {
     return errorResponse("Customer not found", 404);
   }
 
+  const statement = statementResult.data;
   return successResponse({
     data: {
-      customer,
-      statement,
+      customer: customerResult.data,
+      statement: statement.entries || [],
       summary: {
-        totalTransactions: activeTransactions.length,
-        finalBalance: calculateCustomerOutstanding(credits),
+        totalTransactions: statement.total_entries || 0,
+        receivable: statement.receivable_local,
+        payable: statement.payable_local,
+        openingBalance: statement.opening_balance_local,
+        periodChange: statement.period_delta_local,
+        finalBalance: statement.closing_balance_local,
       },
     },
   });

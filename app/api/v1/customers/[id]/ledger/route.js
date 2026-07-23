@@ -1,25 +1,16 @@
 import { Permissions } from "@/lib/access/permissions";
 import { requireExchangePermission } from "@/lib/access/server";
-import { calculateCustomerOutstanding } from "@/lib/domain/accounting";
+import { getUtcDateRange } from "@/lib/domain/dateRange";
+import { mapLedgerError } from "@/lib/domain/ledgerInput";
 import { asyncHandler } from "@/lib/utils/asyncHandler";
 import { successResponse, errorResponse } from "@/lib/utils/response";
 import { parsePagination, validateUUID } from "@/lib/utils/validation";
 import { rateLimit, RateLimitPresets } from "@/lib/middleware";
-import { TRANSACTION_TYPES } from "@/lib/shared/constants";
 
 const readRateLimiter = rateLimit(RateLimitPresets.standard);
-const CREDIT_TYPES = [TRANSACTION_TYPES.CREDIT_GIVEN, TRANSACTION_TYPES.CREDIT_RECEIVED];
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-
-function chronologicalKey(transaction) {
-  return [
-    transaction.posted_at || transaction.created_at,
-    transaction.created_at,
-    transaction.id,
-  ].join("|");
-}
 
 export const GET = asyncHandler(async (request, { params }) => {
   const rateLimitResult = await readRateLimiter(request);
@@ -28,69 +19,58 @@ export const GET = asyncHandler(async (request, { params }) => {
   const { id } = await params;
   validateUUID(id, "Customer ID");
 
-  const { supabase, organizationId } = await requireExchangePermission(request, Permissions.CUSTOMERS_BALANCE_READ);
+  const { supabase } = await requireExchangePermission(
+    request,
+    Permissions.CUSTOMERS_BALANCE_READ,
+  );
   const { searchParams } = new URL(request.url);
-  const { limit, offset } = parsePagination(searchParams, { defaultLimit: 20, maxLimit: 100 });
+  const { limit, offset } = parsePagination(searchParams, {
+    defaultLimit: 20,
+    maxLimit: 100,
+  });
   const type = searchParams.get("type");
   const startDate = searchParams.get("start_date");
   const endDate = searchParams.get("end_date");
+  const timezone = searchParams.get("timezone") || "UTC";
 
-  let ledgerQuery = supabase
-    .schema("exchange")
-    .from("transactions")
-    .select(`
-      *,
-      currency:currencies(id, code, name, symbol),
-      reversal:transaction_reversals(id, reason, created_at)
-    `, { count: "exact" })
-    .eq("customer_id", id)
-    .eq("organization_id", organizationId)
-    .neq("type", "expense")
-    .is("reversal", null)
-    .order("posted_at", { ascending: false });
-
-  if (type) ledgerQuery = ledgerQuery.eq("type", type);
-  if (startDate) ledgerQuery = ledgerQuery.gte("posted_at", startDate);
-  if (endDate) ledgerQuery = ledgerQuery.lte("posted_at", endDate);
-
-  const [ledgerResult, creditsResult] = await Promise.all([
-    ledgerQuery.range(offset, offset + limit - 1),
-    supabase
-      .schema("exchange")
-      .from("transactions")
-      .select("id, type, amount_local, posted_at, created_at, reversal:transaction_reversals(id)")
-      .eq("customer_id", id)
-      .eq("organization_id", organizationId)
-      .in("type", CREDIT_TYPES)
-      .is("reversal", null)
-      .order("posted_at", { ascending: true })
-      .order("created_at", { ascending: true }),
-  ]);
-
-  if (ledgerResult.error || creditsResult.error) {
-    console.error("Customer ledger error", {
-      ledger: ledgerResult.error,
-      credits: creditsResult.error,
-    });
-    return errorResponse("Failed to fetch ledger", 500);
+  let range = null;
+  if (startDate || endDate) {
+    try {
+      range = getUtcDateRange(
+        startDate || endDate,
+        endDate || startDate,
+        timezone,
+      );
+    } catch (rangeError) {
+      return errorResponse(rangeError.message, 400);
+    }
   }
 
-  const credits = creditsResult.data || [];
-  const ledger = (ledgerResult.data || []).map((transaction) => {
-    const key = chronologicalKey(transaction);
-    const creditsAtTransaction = credits.filter(
-      (credit) => chronologicalKey(credit) <= key,
-    );
-    return {
-      ...transaction,
-      running_balance: calculateCustomerOutstanding(creditsAtTransaction),
-    };
-  });
-  const balance = calculateCustomerOutstanding(credits);
-  const count = ledgerResult.count || 0;
+  const { data, error } = await supabase
+    .schema("exchange")
+    .rpc("get_customer_financial_summary", {
+      p_customer_id: id,
+      p_limit: limit,
+      p_offset: offset,
+      p_start: range?.start ?? null,
+      p_end: range?.endExclusive ?? null,
+      p_type: type || null,
+    });
 
+  if (error) {
+    console.error("Customer ledger error", error);
+    const mapped = mapLedgerError(error);
+    return errorResponse(mapped.message, mapped.status);
+  }
+
+  const count = data.total_entries || 0;
   return successResponse({
-    data: { ledger, balance },
+    data: {
+      ledger: data.entries || [],
+      balance: data.balance_local,
+      receivable: data.receivable_local,
+      payable: data.payable_local,
+    },
     pagination: {
       total: count,
       limit,

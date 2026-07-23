@@ -1,15 +1,15 @@
 "use client";
 
 import { useTheme } from "@/contexts/ThemeContext";
-import OpeningPositions from "@/components/settings/OpeningPositions";
 import PermissionGate from "@/components/access/PermissionGate";
 import { Permissions } from "@/lib/access/permissions";
+import FinancialSetup from "@/components/settings/FinancialSetup";
 
 export default function SettingsPage() {
   const { mode, setMode } = useTheme();
 
   return (
-    <PermissionGate permission={Permissions.OPENING_POSITIONS_MANAGE}>
+    <PermissionGate permission={[Permissions.ACCOUNTS_MANAGE, Permissions.OPENING_POSITIONS_MANAGE]}>
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6">
       <h1 className="text-2xl font-bold text-text-primary mb-6">Settings</h1>
 
@@ -38,7 +38,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <OpeningPositions />
+      <FinancialSetup />
 
       {/* App Info */}
       <div className="bg-surface-raised rounded-xl border border-border-theme p-6">

@@ -5,3 +5,4 @@ export { useDashboardStats } from "./useDashboardStats";
 export { useExpenses, useExpenseCategories } from "./useExpenses";
 export { useReports } from "./useReports";
 export { useDebounce } from "./useDebounce";
+export { useFinancialAccounts } from "./useFinancialAccounts";

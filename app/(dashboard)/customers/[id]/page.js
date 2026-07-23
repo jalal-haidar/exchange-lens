@@ -42,7 +42,6 @@ function CustomerDetailContent() {
         ← Back to customers
       </Link>
 
-      {/* Customer Info */}
       <div className="bg-surface-raised rounded-xl border border-border-theme p-6 mb-6">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
@@ -53,9 +52,12 @@ function CustomerDetailContent() {
             {customer.notes && <p className="text-text-secondary mt-1">📝 {customer.notes}</p>}
           </div>
           <div className="text-right">
-            <p className="text-xs text-text-muted">Outstanding (credit only)</p>
+            <p className="text-xs text-text-muted">Net customer balance</p>
             <p className={`text-xl font-bold ${Number(balance) > 0 ? "text-danger" : "text-success"}`}>
               {formatAmount(balance)}
+            </p>
+            <p className="text-xs text-text-muted mt-1">
+              Positive means customer owes us; negative means we owe customer
             </p>
             <p className="text-xs text-text-muted mt-1">
               Member since {formatDateLong(customer.created_at)}
@@ -64,7 +66,6 @@ function CustomerDetailContent() {
         </div>
       </div>
 
-      {/* Quick Actions */}
       <div className="flex flex-wrap gap-3 mb-6">
         <Link
           href={`/transactions/new?customer_id=${customer.id}&type=buy`}
@@ -79,14 +80,13 @@ function CustomerDetailContent() {
           Sell to Customer
         </Link>
         <Link
-          href={`/transactions/new?customer_id=${customer.id}&type=credit_given`}
-          className="px-4 py-2 bg-danger text-white rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+          href="/cashflow"
+          className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
         >
-          Give Credit
+          Record Receipt or Payout
         </Link>
       </div>
 
-      {/* Ledger */}
       <CustomerLedger ledger={ledger} isLoading={ledgerLoading} />
     </div>
   );

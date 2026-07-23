@@ -4,6 +4,7 @@ import { prepareExpenseInput } from "@/lib/domain/expenseInput";
 import { asyncHandler } from "@/lib/utils/asyncHandler";
 import { successResponse, errorResponse } from "@/lib/utils/response";
 import { rateLimit, RateLimitPresets } from "@/lib/middleware";
+import { mapLedgerError } from "@/lib/domain/ledgerInput";
 
 const readRateLimiter = rateLimit(RateLimitPresets.standard);
 const writeRateLimiter = rateLimit(RateLimitPresets.strict);
@@ -65,25 +66,18 @@ export const POST = asyncHandler(async (request) => {
 
   const { data: postedExpense, error: postError } = await supabase
     .schema("exchange")
-    .rpc("post_expense", expenseInput)
+    .rpc("post_ledger_expense", expenseInput)
     .single();
 
   if (postError) {
-    if (postError.code === "P0002") {
-      return errorResponse(postError.message, 404);
+    const mapped = mapLedgerError(postError);
+    if (mapped.status === 500) {
+      console.error("Expense posting failed", {
+        code: postError.code,
+        details: postError.details,
+      });
     }
-    if (["22003", "22023"].includes(postError.code)) {
-      return errorResponse(postError.message, 400);
-    }
-    if (["23505", "23514"].includes(postError.code)) {
-      return errorResponse(postError.message, 409);
-    }
-
-    console.error("Expense posting failed", {
-      code: postError.code,
-      details: postError.details,
-    });
-    return errorResponse("Failed to create expense", 500);
+    return errorResponse(mapped.message, mapped.status);
   }
 
   const { data: hydratedExpense, error: hydrateError } = await supabase

@@ -14,6 +14,7 @@ const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: "🏠", permissions: [Permissions.ACCESS_READ] },
   { name: "Customers", href: "/customers", icon: "👥", permissions: [Permissions.CUSTOMERS_DIRECTORY_READ] },
   { name: "Transactions", href: "/transactions", icon: "💱", permissions: [Permissions.OPERATIONS_READ_ALL, Permissions.TRANSACTIONS_READ_OWN] },
+  { name: "Cashflow", href: "/cashflow", icon: "🏦", permissions: [Permissions.ACCOUNTS_READ, Permissions.SETTLEMENTS_POST, Permissions.TRANSFERS_POST] },
   { name: "Rates", href: "/rates", icon: "📊", permissions: [Permissions.RATES_READ] },
   { name: "Expenses", href: "/expenses", icon: "💸", permissions: [Permissions.OPERATIONS_READ_ALL, Permissions.EXPENSES_READ_OWN] },
   { name: "Reports", href: "/reports", icon: "📈", permissions: [Permissions.FINANCIAL_REPORTS_READ] },

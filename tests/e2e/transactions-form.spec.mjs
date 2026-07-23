@@ -43,24 +43,19 @@ test.describe.serial("transaction form", () => {
     await expect(page.getByRole("heading", { name: "New Transaction" })).toBeVisible();
     await expect(page.getByText("Buy Currency")).toBeVisible();
     await expect(page.getByText("Sell Currency")).toBeVisible();
-    await expect(page.getByText("Give Credit")).toBeVisible();
-    await expect(page.getByText("Receive Payment")).toBeVisible();
-    await expect(page.getByText("Receive Payment")).toBeVisible();
+    await expect(page.getByText("Give Credit")).toHaveCount(0);
+    await expect(page.getByText("Receive Payment")).toHaveCount(0);
+    await expect(page.getByText("Settled now (PKR)")).toBeVisible();
   });
 
-  test("type selector switches form fields", async ({ page }) => {
+  test("type selector keeps account-backed trade fields", async ({ page }) => {
     await page.goto(`${EXCHANGE_URL}/transactions/new`);
 
     await expect(page.locator("text=Customer *").locator("..").locator("select")).toBeVisible();
-    await expect(page.locator("text=Currency *").locator("..").locator("select")).toBeVisible();
-
-    await page.getByText("Give Credit").click();
+    await expect(page.locator("text=Foreign cash/bank account *").locator("..").locator("select")).toBeVisible();
+    await page.getByText("Sell Currency").click();
     await expect(page.locator("text=Customer *").locator("..").locator("select")).toBeVisible();
-    await expect(page.locator("text=Currency *").locator("..").locator("select")).toBeHidden();
-
-    await page.getByText("Receive Payment").click();
-    await expect(page.locator("text=Customer *").locator("..").locator("select")).toBeVisible();
-    await expect(page.locator("text=Currency *").locator("..").locator("select")).toBeHidden();
+    await expect(page.locator("text=Foreign cash/bank account *").locator("..").locator("select")).toBeVisible();
   });
 
   test("buy type shows correct description", async ({ page }) => {
@@ -78,14 +73,15 @@ test.describe.serial("transaction form", () => {
     await page.getByRole("button", { name: "Record Transaction" }).click();
     await expect(page.getByText("Customer is required")).toBeVisible();
     await expect(page.getByText("Amount is required", { exact: true })).toBeVisible();
+    await expect(page.getByText("Foreign account is required")).toBeVisible();
   });
 
-  test("form validation — buy without currency", async ({ page }) => {
+  test("form validation — buy without custody account", async ({ page }) => {
     await page.goto(`${EXCHANGE_URL}/transactions/new?type=buy`);
     const customerSelect = page.locator("text=Customer *").locator("..").locator("select");
     await customerSelect.selectOption({ index: 1 });
     await page.getByRole("button", { name: "Record Transaction" }).click();
-    await expect(page.getByText("Currency is required")).toBeVisible();
+    await expect(page.getByText("Foreign account is required")).toBeVisible();
   });
 
   test("cancel button navigates back", async ({ page }) => {

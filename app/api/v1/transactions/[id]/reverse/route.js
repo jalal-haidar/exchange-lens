@@ -4,6 +4,7 @@ import { asyncHandler } from "@/lib/utils/asyncHandler";
 import { successResponse, errorResponse } from "@/lib/utils/response";
 import { validateUUID } from "@/lib/utils/validation";
 import { rateLimit, RateLimitPresets } from "@/lib/middleware";
+import { mapLedgerError } from "@/lib/domain/ledgerInput";
 
 const writeRateLimiter = rateLimit(RateLimitPresets.strict);
 
@@ -21,29 +22,38 @@ export const POST = asyncHandler(async (request, { params }) => {
     return errorResponse("Reversal reason must be at least 3 characters", 400);
   }
 
-  const { data, error } = await supabase
+  const { data: transaction, error: lookupError } = await supabase
     .schema("exchange")
-    .rpc("reverse_transaction", {
-      p_transaction_id: id,
-      p_reason: reason,
-    })
+    .from("transactions")
+    .select("journal_entry_id")
+    .eq("id", id)
     .single();
-
-  if (error) {
-    if (error.code === "P0002") {
-      return errorResponse(error.message, 404);
-    }
-    if (["22023", "23514"].includes(error.code)) {
-      return errorResponse(error.message, 409);
-    }
-
-    console.error("Transaction reversal failed", {
-      transactionId: id,
-      code: error.code,
-      details: error.details,
-    });
-    return errorResponse("Failed to reverse transaction", 500);
+  if (lookupError || !transaction?.journal_entry_id) {
+    return errorResponse(
+      transaction ? "Legacy transactions must be corrected before ledger setup" : "Transaction not found",
+      transaction ? 409 : 404,
+    );
   }
 
-  return successResponse({ data: { reversal: data } }, 201);
+  const { data, error } = await supabase
+    .schema("exchange")
+    .rpc("void_financial_entry", {
+      p_entry_id: transaction.journal_entry_id,
+      p_reason: reason,
+      p_idempotency_key: crypto.randomUUID(),
+    });
+
+  if (error) {
+    const mapped = mapLedgerError(error);
+    if (mapped.status === 500) {
+      console.error("Transaction reversal failed", {
+        transactionId: id,
+        code: error.code,
+        details: error.details,
+      });
+    }
+    return errorResponse(mapped.message, mapped.status);
+  }
+
+  return successResponse({ data: { reversalEntryId: data } }, 201);
 });

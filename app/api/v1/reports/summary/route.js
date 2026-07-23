@@ -1,16 +1,12 @@
 import { Permissions } from "@/lib/access/permissions";
 import { requireExchangePermission } from "@/lib/access/server";
-import { summarizeCashflow, summarizeProfitLoss } from "@/lib/domain/accounting";
 import { getUtcDayRange } from "@/lib/domain/dateRange";
 import { asyncHandler } from "@/lib/utils/asyncHandler";
 import { successResponse, errorResponse } from "@/lib/utils/response";
+import { subtractMoney } from "@/lib/domain/ledgerInput";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-
-function isActive(entry) {
-  return !entry.reversal || (Array.isArray(entry.reversal) && entry.reversal.length === 0);
-}
 
 export const GET = asyncHandler(async (request) => {
   const { supabase, organizationId } = await requireExchangePermission(request, Permissions.FINANCIAL_REPORTS_READ);
@@ -29,7 +25,13 @@ export const GET = asyncHandler(async (request) => {
     return errorResponse(error.message, 400);
   }
 
-  const [transactionsResult, expensesResult] = await Promise.all([
+  const [summaryResult, transactionsResult] = await Promise.all([
+    supabase
+      .schema("exchange")
+      .rpc("get_financial_summary", {
+        p_start: range.start,
+        p_end: range.endExclusive,
+      }),
     supabase
       .schema("exchange")
       .from("transactions")
@@ -42,44 +44,48 @@ export const GET = asyncHandler(async (request) => {
       .eq("organization_id", organizationId)
       .gte("posted_at", range.start)
       .lt("posted_at", range.endExclusive)
-      .order("posted_at", { ascending: false }),
-    supabase
-      .schema("exchange")
-      .from("expenses")
-      .select("amount, date, reversal:expense_reversals(id)")
-      .eq("organization_id", organizationId)
-      .gte("date", range.start)
-      .lt("date", range.endExclusive),
+      .order("posted_at", { ascending: false })
+      .limit(200),
   ]);
 
-  if (transactionsResult.error || expensesResult.error) {
+  if (summaryResult.error || transactionsResult.error) {
     console.error("Daily summary error", {
+      summary: summaryResult.error,
       transactions: transactionsResult.error,
-      expenses: expensesResult.error,
     });
     return errorResponse("Failed to fetch summary", 500);
   }
 
-  const transactions = (transactionsResult.data || []).filter(isActive);
-  const expenses = (expensesResult.data || []).filter(isActive);
-  const cashflow = summarizeCashflow({ transactions, expenses });
-  const profit = summarizeProfitLoss({ transactions, expenses });
+  const ledger = summaryResult.data;
+  const transactions = (transactionsResult.data || []).filter(
+    (entry) => !entry.reversal || entry.reversal.length === 0,
+  );
 
   return successResponse({
     data: {
       date,
       timezone,
       summary: {
-        totalBuy: cashflow.total_buy,
-        totalSell: cashflow.total_sell,
-        totalExpenses: cashflow.total_expenses,
-        totalCreditGiven: cashflow.total_credit_given,
-        totalCreditReceived: cashflow.total_credit_received,
-        netCashMovement: cashflow.net_cash_movement,
-        realizedFxMargin: profit.realized_fx_margin,
-        realizedProfit: profit.net_profit,
+        totalBuy: ledger.trades.buy_total_local,
+        totalSell: ledger.trades.sell_total_local,
+        totalExpenses: ledger.expenses.total_local,
+        totalCreditGiven: 0,
+        totalCreditReceived: 0,
+        netCashMovement: subtractMoney(
+          ledger.trades.sell_total_local,
+          ledger.trades.buy_total_local,
+          ledger.expenses.total_local,
+        ),
+        realizedFxMargin: ledger.trades.realized_margin_local,
+        realizedProfit: subtractMoney(
+          ledger.trades.realized_margin_local,
+          ledger.expenses.total_local,
+        ),
+        outstanding: ledger.trades.outstanding_local,
+        accountBalances: ledger.balances,
       },
       transactions,
+      transactionsTruncated: ledger.trades.count > transactions.length,
     },
   });
 });
