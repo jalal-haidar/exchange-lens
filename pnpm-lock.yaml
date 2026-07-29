@@ -15,8 +15,8 @@ importers:
         specifier: ^2.2.0
         version: 2.2.0(react@19.2.7)
       '@lifelens/auth':
-        specifier: ^0.4.0
-        version: 0.4.0(@supabase/ssr@0.7.0(@supabase/supabase-js@2.110.7))(next@16.2.10(@babel/core@7.29.7)(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)
+        specifier: ^0.4.1
+        version: 0.4.1(@supabase/ssr@0.7.0(@supabase/supabase-js@2.110.7))(next@16.2.10(@babel/core@7.29.7)(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)
       '@supabase/ssr':
         specifier: ^0.7.0
         version: 0.7.0(@supabase/supabase-js@2.110.7)
@@ -425,8 +425,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@lifelens/auth@0.4.0':
-    resolution: {integrity: sha512-7AdKn2LGI6k9k3kHY3FYZMiL5CZimXPUs5ACcF206XwL/KKYoWNYCagmoHP2K2ayf0tdupqZSeYiIEtQWmH15w==}
+  '@lifelens/auth@0.4.1':
+    resolution: {integrity: sha512-UTJt/BUJRiUUJlyqSEnXWYuWDuv2UmMJfEQRUVEv0J1oYs8FtDnaHBSjteaJXxryUTYIl+z+EY+24aBIO1WN2g==}
     peerDependencies:
       '@supabase/ssr': ^0.5.0 || ^0.6.0 || ^0.7.0
       next: ^14.0.0 || ^15.0.0 || ^16.0.0
@@ -2681,7 +2681,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@lifelens/auth@0.4.0(@supabase/ssr@0.7.0(@supabase/supabase-js@2.110.7))(next@16.2.10(@babel/core@7.29.7)(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)':
+  '@lifelens/auth@0.4.1(@supabase/ssr@0.7.0(@supabase/supabase-js@2.110.7))(next@16.2.10(@babel/core@7.29.7)(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)':
     dependencies:
       '@supabase/supabase-js': 2.110.7
     optionalDependencies:
