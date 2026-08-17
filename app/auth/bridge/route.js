@@ -1,3 +1,3 @@
-import { createBridgeHandler } from "@lifelens/auth/bridge";
+import { createSentryBridgeHandler } from "@lifelens/auth/sentry";
 
-export const POST = createBridgeHandler();
+export const POST = createSentryBridgeHandler();
