@@ -8,3 +8,7 @@ coverage/
 test-results/
 playwright-report/
 .vercel
+
+# environment files (never commit real values)
+.env.*
+!.env.example
